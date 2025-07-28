@@ -23,7 +23,7 @@ function getScale() { return parseFloat(getVal("scaleInput", "1")); }
 function getUnitMode() { return getVal("unitSelect", "feet-inches"); }
 function getColor() { return getVal("colorInput", "#000000"); }
 function getThickness() { return parseInt(getVal("thicknessInput", "2")); }
-function getLabel() { return getVal("labelInput", ""); }
+function getRotation() { return parseFloat(getVal("rotationInput", "0")); }
 
 function snap(val) {
   return Math.round(val / (gridSize / 2)) * (gridSize / 2);
@@ -63,147 +63,117 @@ function redo() {
   redraw();
 }
 
-function redraw() {
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.setTransform(zoomLevel, 0, 0, zoomLevel, offsetX, offsetY);
-  ctx.fillStyle = "#9fc3e9";
-  ctx.fillRect(0, 0, canvas.width / zoomLevel, canvas.height / zoomLevel);
-
-  for (const shape of shapes) {
-    drawShape(shape);
-  }
-  if (preview) {
-    drawShape(preview, true);
+function formatDimensions(w, h, scale, unitMode) {
+  const sw = w * scale;
+  const sh = h * scale;
+  if (unitMode === "feet-inches") {
+    const fw = Math.floor(sw);
+    const iw = Math.round((sw - fw) * 12);
+    const fh = Math.floor(sh);
+    const ih = Math.round((sh - fh) * 12);
+    return `${fw}'${iw}\" x ${fh}'${ih}\"`;
+  } else if (unitMode === "decimal-feet") {
+    return `${sw.toFixed(2)}ft x ${sh.toFixed(2)}ft`;
+  } else if (unitMode === "metric") {
+    return `${(sw * 0.3048).toFixed(2)}m x ${(sh * 0.3048).toFixed(2)}m`;
+  } else {
+    return `${sw.toFixed(1)} x ${sh.toFixed(1)}`;
   }
 }
 
-function drawShape(shape, isPreview = false) {
+function drawLineLabel(x1, y1, x2, y2, color) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  const label = formatDimensions(distance, 0, getScale(), getUnitMode());
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2;
+  ctx.fillStyle = color;
+  ctx.font = `${12 / zoomLevel}px Arial`;
+  ctx.fillText(label, midX + 5, midY - 5);
+}
+
+function drawDoor(x, y, width, height, rotation, color) {
   ctx.save();
-  ctx.strokeStyle = shape.color;
-  ctx.lineWidth = shape.thickness / zoomLevel;
-  ctx.setLineDash(isPreview ? [4 / zoomLevel, 4 / zoomLevel] : []);
-  if (shape.type === "room" || shape.type === "line") {
-    ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
-    if (shape.label) {
-      ctx.fillStyle = shape.color;
-      ctx.font = `${12 / zoomLevel}px Arial`;
-      ctx.fillText(`${shape.label} (${shape.width} x ${shape.height})`, shape.x + 5, shape.y - 5);
-    }
-  } else if (shape.type === "curve") {
-    ctx.beginPath();
-    ctx.moveTo(shape.points[0].x, shape.points[0].y);
-    ctx.quadraticCurveTo(shape.points[1].x, shape.points[1].y, shape.points[2].x, shape.points[2].y);
-    ctx.stroke();
-  } else if (shape.type === "label") {
-    ctx.fillStyle = shape.color;
-    ctx.font = `${14 / zoomLevel}px Arial`;
-    ctx.fillText(shape.label, shape.x, shape.y);
-  }
+  ctx.translate(x, y);
+  ctx.rotate((rotation * Math.PI) / 180);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2 / zoomLevel;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(width, 0);
+  ctx.arc(0, 0, width, 0, Math.PI / 2);
+  ctx.stroke();
   ctx.restore();
-  ctx.setLineDash([]);
+  saveState();
+}
+
+function drawWindow(x, y, width, height, rotation, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate((rotation * Math.PI) / 180);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2 / zoomLevel;
+  ctx.beginPath();
+  ctx.arc(0, 0, width, Math.PI, 0);
+  ctx.stroke();
+  ctx.restore();
+  saveState();
 }
 
 canvas.addEventListener("mousedown", (e) => {
-  if (e.button === 1) {
-    isDraggingCanvas = true;
-    dragStart = { x: e.clientX, y: e.clientY };
-    return;
-  }
-  const { x, y } = toCanvasCoords(e);
-  const snappedX = snap(x);
-  const snappedY = snap(y);
-
-  if (currentMode === "curve") {
-    curvePoints.push({ x: snappedX, y: snappedY });
-    if (curvePoints.length === 3) {
-      saveState();
-      shapes.push({
-        type: "curve",
-        points: [...curvePoints],
-        color: getColor(),
-        thickness: getThickness(),
-        label: getLabel()
-      });
-      curvePoints = [];
-      redraw();
-    }
-    return;
-  }
-
-  if (currentMode === "label") {
-    saveState();
-    shapes.push({
-      type: "label",
-      x: snappedX,
-      y: snappedY,
-      label: getLabel(),
-      color: getColor()
-    });
+  const pos = toCanvasCoords(e);
+  if (currentMode === "erase") {
+    isDrawing = true;
+    startX = pos.x;
+    startY = pos.y;
+    preview = { type: "erase", x: startX, y: startY, width: 0, height: 0 };
     redraw();
-    return;
   }
-
-  isDrawing = true;
-  startX = snappedX;
-  startY = snappedY;
 });
 
 canvas.addEventListener("mousemove", (e) => {
-  if (isDraggingCanvas) {
-    offsetX += e.clientX - dragStart.x;
-    offsetY += e.clientY - dragStart.y;
-    dragStart = { x: e.clientX, y: e.clientY };
+  if (!isDrawing || currentMode !== "erase") return;
+  const pos = toCanvasCoords(e);
+  const x = Math.min(startX, pos.x);
+  const y = Math.min(startY, pos.y);
+  const w = Math.abs(pos.x - startX);
+  const h = Math.abs(pos.y - startY);
+  preview = { type: "erase", x, y, width: w, height: h };
+  redraw();
+});
+
+canvas.addEventListener("mouseup", () => {
+  if (currentMode === "erase" && isDrawing && preview) {
+    const { x, y, width, height } = preview;
+    shapes = shapes.filter(s => {
+      if (s.type === "curve") return true;
+      const sx = s.x ?? 0;
+      const sy = s.y ?? 0;
+      const sw = s.width ?? 0;
+      const sh = s.height ?? 0;
+      return !(sx >= x && sy >= y && sx <= x + width && sy <= y + height);
+    });
+    saveState();
+    preview = null;
+    isDrawing = false;
     redraw();
-    return;
   }
-
-  if (!isDrawing) return;
-  const { x, y } = toCanvasCoords(e);
-  const endX = snap(x);
-  const endY = snap(y);
-  const width = endX - startX;
-  const height = endY - startY;
-
-  preview = {
-    type: currentMode,
-    x: startX,
-    y: startY,
-    width,
-    height,
-    color: getColor(),
-    thickness: getThickness(),
-    label: getLabel()
-  };
-  redraw();
 });
 
-canvas.addEventListener("mouseup", (e) => {
-  if (isDraggingCanvas) {
-    isDraggingCanvas = false;
-    return;
+canvas.addEventListener("dblclick", (e) => {
+  const pos = toCanvasCoords(e);
+  const text = prompt("Enter label text:");
+  if (text) {
+    shapes.push({
+      type: "label",
+      x: pos.x,
+      y: pos.y,
+      label: text,
+      color: getColor(),
+      thickness: 1
+    });
+    saveState();
+    redraw();
   }
-
-  if (!isDrawing || !preview) return;
-  saveState();
-  shapes.push({ ...preview });
-  preview = null;
-  isDrawing = false;
-  redraw();
-});
-
-canvas.addEventListener("wheel", (e) => {
-  e.preventDefault();
-  const scaleAmount = 1.1;
-  const { x, y } = toCanvasCoords(e);
-  if (e.deltaY < 0) {
-    zoomLevel *= scaleAmount;
-    offsetX -= x * (scaleAmount - 1) * zoomLevel;
-    offsetY -= y * (scaleAmount - 1) * zoomLevel;
-  } else {
-    zoomLevel /= scaleAmount;
-    offsetX += x * (1 - 1 / scaleAmount) * zoomLevel;
-    offsetY += y * (1 - 1 / scaleAmount) * zoomLevel;
-  }
-  redraw();
 });
