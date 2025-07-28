@@ -12,6 +12,8 @@ let zoomLevel = 1;
 let offsetX = 0, offsetY = 0;
 let dragStart = null;
 let isDraggingCanvas = false;
+let currentLayer = 0;
+let rotation = 0; // Degrees
 
 const gridSize = 20;
 
@@ -23,6 +25,8 @@ function getScale() { return parseFloat(getVal("scaleInput", "1")); }
 function getUnitMode() { return getVal("unitSelect", "feet-inches"); }
 function getColor() { return getVal("colorInput", "#000000"); }
 function getThickness() { return parseInt(getVal("thicknessInput", "2")); }
+function getRotation() { return parseInt(getVal("rotationInput", "0")); }
+function getLayer() { return parseInt(getVal("layerInput", "0")); }
 
 function snap(val) { return Math.round(val / (gridSize / 2)) * (gridSize / 2); }
 function toCanvasCoords(e) {
@@ -55,101 +59,59 @@ function redo() {
   redraw();
 }
 
-canvas.addEventListener("mousedown", (e) => {
-  const { x, y } = toCanvasCoords(e);
-  const snappedX = snap(x);
-  const snappedY = snap(y);
+function redraw() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.setTransform(zoomLevel, 0, 0, zoomLevel, offsetX, offsetY);
+  ctx.fillStyle = "#9fc3e9";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  if (e.button === 1) { // Middle mouse for pan
-    isDraggingCanvas = true;
-    dragStart = { x: e.clientX - offsetX, y: e.clientY - offsetY };
-    return;
-  }
+  shapes.filter(s => s.layer === currentLayer).forEach(shape => drawShape(shape));
+  if (preview && preview.layer === currentLayer) drawShape(preview, true);
+}
 
-  if (currentMode === "curve") {
-    curvePoints.push({ x: snappedX, y: snappedY });
-    if (curvePoints.length === 3) {
-      saveState();
-      shapes.push({ type: "curve", points: [...curvePoints], color: getColor(), thickness: getThickness(), label: getVal("labelInput", "") });
-      curvePoints = [];
-      redraw();
+function drawShape(shape, isPreview = false) {
+  ctx.save();
+  ctx.translate(shape.x + shape.width / 2, shape.y + shape.height / 2);
+  ctx.rotate((shape.rotation || 0) * Math.PI / 180);
+  ctx.strokeStyle = shape.color;
+  ctx.lineWidth = shape.thickness;
+  ctx.setLineDash(isPreview && shape.type === "erase" ? [5, 5] : []);
+
+  if (["line", "room", "door", "window"].includes(shape.type)) {
+    if (shape.type === "door") {
+      ctx.beginPath();
+      ctx.moveTo(-shape.width / 2, -shape.height / 2);
+      ctx.arc(-shape.width / 2, shape.height / 2, shape.width, -Math.PI / 2, 0);
+      ctx.stroke();
+    } else if (shape.type === "window") {
+      ctx.beginPath();
+      ctx.moveTo(-shape.width / 2, 0);
+      ctx.lineTo(shape.width / 2, 0);
+      ctx.moveTo(0, -shape.height / 2);
+      ctx.lineTo(0, shape.height / 2);
+      ctx.stroke();
+    } else {
+      ctx.strokeRect(-shape.width / 2, -shape.height / 2, shape.width, shape.height);
     }
-    return;
+
+    if (shape.label) {
+      ctx.fillStyle = shape.color;
+      ctx.font = "12px Arial";
+      ctx.fillText(`${shape.label} (${shape.width} x ${shape.height})`, -shape.width / 2 + 5, -shape.height / 2 - 5);
+    }
+  } else if (shape.type === "curve" && shape.points) {
+    ctx.beginPath();
+    ctx.moveTo(shape.points[0].x - shape.x, shape.points[0].y - shape.y);
+    ctx.quadraticCurveTo(shape.points[1].x - shape.x, shape.points[1].y - shape.y, shape.points[2].x - shape.x, shape.points[2].y - shape.y);
+    ctx.stroke();
+  } else if (shape.type === "label") {
+    ctx.fillStyle = shape.color;
+    ctx.font = "14px Arial";
+    ctx.fillText(shape.label, 0, 0);
   }
 
-  if (currentMode === "erase") {
-    isDrawing = true;
-    startX = snappedX;
-    startY = snappedY;
-    return;
-  }
+  ctx.restore();
+  ctx.setLineDash([]);
+}
 
-  isDrawing = true;
-  startX = snappedX;
-  startY = snappedY;
-});
-
-canvas.addEventListener("mousemove", (e) => {
-  if (isDraggingCanvas) {
-    offsetX = e.clientX - dragStart.x;
-    offsetY = e.clientY - dragStart.y;
-    redraw();
-    return;
-  }
-  if (!isDrawing) return;
-  const { x, y } = toCanvasCoords(e);
-  const endX = snap(x);
-  const endY = snap(y);
-  preview = {
-    type: currentMode,
-    x: Math.min(startX, endX),
-    y: Math.min(startY, endY),
-    width: Math.abs(endX - startX),
-    height: Math.abs(endY - startY),
-    x2: endX,
-    y2: endY,
-    color: getColor(),
-    thickness: getThickness(),
-    label: getVal("labelInput", "")
-  };
-  redraw();
-});
-
-canvas.addEventListener("mouseup", (e) => {
-  if (isDraggingCanvas) {
-    isDraggingCanvas = false;
-    return;
-  }
-
-  if (preview && currentMode === "erase") {
-    saveState();
-    const eraseBox = preview;
-    shapes = shapes.filter(s => {
-      const path = buildPath(s);
-      return !ctx.isPointInPath(path, eraseBox.x, eraseBox.y) &&
-             !ctx.isPointInPath(path, eraseBox.x + eraseBox.width, eraseBox.y + eraseBox.height);
-    });
-    preview = null;
-    redraw();
-    return;
-  }
-
-  if (preview && currentMode !== "curve") {
-    saveState();
-    shapes.push({ ...preview });
-  }
-  isDrawing = false;
-  preview = null;
-  redraw();
-});
-
-canvas.addEventListener("wheel", (e) => {
-  e.preventDefault();
-  const delta = e.deltaY < 0 ? 1.1 : 0.9;
-  zoomLevel *= delta;
-  zoomLevel = Math.max(0.1, Math.min(zoomLevel, 10));
-  redraw();
-});
-  };
-  reader.readAsText(file);
-});
