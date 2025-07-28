@@ -21,13 +21,25 @@
     </label>
     <label>Line Color: <input type="color" id="colorInput" value="#000000" /></label>
     <label>Thickness: <input type="number" id="thicknessInput" value="2" min="1" max="10" /></label>
+
     <br />
+
     <button onclick="setMode('room')">🏠 Room</button>
     <button onclick="setMode('line')">📏 Line</button>
     <button onclick="setMode('curve')">🌀 Curve</button>
     <button onclick="setMode('window')">🪟 Window</button>
+    <select id="windowType">
+      <option value="fixed">Fixed Window</option>
+      <option value="sliding">Sliding Window</option>
+    </select>
     <button onclick="setMode('door')">🚪 Door</button>
+    <select id="doorType">
+      <option value="single">Single Door</option>
+      <option value="double">Double Door</option>
+    </select>
+
     <br />
+
     <button onclick="clearCanvas()">🧹 Clear</button>
     <button onclick="downloadImage()">🖼️ Export PNG</button>
     <button onclick="saveLayout()">💾 Save JSON</button>
@@ -36,6 +48,10 @@
   </div>
 
   <canvas id="blueprintCanvas" width="1200" height="800"></canvas>
+
+  <script src="script.js"></script>
+</body>
+</html>
 
   <script src="script.js"></script>
 </body>
