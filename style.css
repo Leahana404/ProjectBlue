@@ -1,19 +1,31 @@
 body {
   font-family: Arial, sans-serif;
   background: #9fc3e9;
-  padding: 20px;
-  text-align: center;
+  margin: 0;
+  padding: 10px;
 }
-.controls {
+
+h2 {
+  margin: 0 0 10px;
+}
+
+#controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-bottom: 10px;
-  line-height: 2;
 }
+
+#controls > * {
+  padding: 5px;
+  font-size: 14px;
+}
+
 canvas {
-  background: white;
+  display: block;
   border: 2px solid #333;
   cursor: crosshair;
-}
-button, select, input {
-  margin: 2px;
-  padding: 6px;
+  background: #9fc3e9;
+  max-width: 100%;
+  height: auto;
 }
