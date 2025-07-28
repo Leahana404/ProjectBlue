@@ -3,32 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <title>Blueprint Builder</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #9fc3e9;
-      margin: 0;
-      padding: 10px;
-    }
-    #controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-bottom: 10px;
-    }
-    #controls > * {
-      padding: 5px;
-    }
-    canvas {
-      border: 2px solid #333;
-      cursor: crosshair;
-      background: #9fc3e9;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <h2>Blueprint Drawing Tool</h2>
+
   <div id="controls">
+    <!-- Tool buttons -->
     <button onclick="setMode('room')">Room</button>
     <button onclick="setMode('line')">Line</button>
     <button onclick="setMode('curve')">Curve</button>
@@ -36,15 +17,18 @@
     <button onclick="setMode('window')">Window</button>
     <button onclick="setMode('label')">Label</button>
     <button onclick="setMode('erase')">Eraser</button>
+
+    <!-- Actions -->
     <button onclick="undo()">Undo</button>
     <button onclick="redo()">Redo</button>
     <button onclick="downloadImage()">Download PNG</button>
 
+    <!-- Inputs -->
     <input id="colorInput" type="color" value="#000000" title="Line Color" />
-    <input id="thicknessInput" type="number" value="2" min="1" max="10" title="Line Thickness" />
-    <input id="labelInput" type="text" placeholder="Label text" title="Optional label for shape" />
-    <input id="scaleInput" type="number" value="1" min="0.1" step="0.1" title="Scale (1 = 1ft)" />
-    <select id="unitSelect">
+    <input id="thicknessInput" type="number" min="1" max="10" value="2" title="Line Thickness" />
+    <input id="labelInput" type="text" placeholder="Label (optional)" title="Shape label" />
+    <input id="scaleInput" type="number" min="0.1" step="0.1" value="1" title="Scale (1 = 1ft)" />
+    <select id="unitSelect" title="Units">
       <option value="feet-inches">ft/in</option>
       <option value="decimal-feet">decimal ft</option>
       <option value="metric">meters</option>
