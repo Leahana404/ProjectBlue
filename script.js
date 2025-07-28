@@ -5,42 +5,40 @@ let isDrawing = false;
 let startX, startY;
 let currentMode = "room";
 let shapes = [];
-let zoom = 1;
-let panX = 0, panY = 0;
-let curvePoints = [];
 let preview = null;
+let curvePoints = [];
 
 const gridSize = 20;
 
+function getVal(id, fallback) {
+  const el = document.getElementById(id);
+  return el ? el.value : fallback;
+}
+
 function getScale() {
-  return parseFloat(document.getElementById("scaleInput").value) || 1;
+  return parseFloat(getVal("scaleInput", "1"));
 }
-
 function getUnitMode() {
-  return document.getElementById("unitSelect").value;
+  return getVal("unitSelect", "feet-inches");
 }
-
 function getColor() {
-  return document.getElementById("colorInput").value;
+  return getVal("colorInput", "#000000");
 }
-
 function getThickness() {
-  return parseInt(document.getElementById("thicknessInput").value) || 2;
+  return parseInt(getVal("thicknessInput", "2"));
 }
-
 function getWindowType() {
-  return document.getElementById("windowType")?.value || "fixed";
+  return getVal("windowType", "fixed");
 }
-
 function getDoorType() {
-  return document.getElementById("doorType")?.value || "single";
+  return getVal("doorType", "single");
 }
 
 function toCanvasCoords(e) {
   const rect = canvas.getBoundingClientRect();
   return {
-    x: (e.clientX - rect.left - panX) / zoom,
-    y: (e.clientY - rect.top - panY) / zoom,
+    x: (e.clientX - rect.left),
+    y: (e.clientY - rect.top),
   };
 }
 
@@ -62,12 +60,11 @@ canvas.addEventListener("mousedown", (e) => {
       shapes.push({
         type: "curve",
         points: [...curvePoints],
-        label: document.getElementById("labelInput").value.trim(),
         color: getColor(),
         thickness: getThickness(),
+        label: getVal("labelInput", ""),
       });
       curvePoints = [];
-      preview = null;
       redraw();
     }
     return;
@@ -79,82 +76,36 @@ canvas.addEventListener("mousedown", (e) => {
 });
 
 canvas.addEventListener("mousemove", (e) => {
-  if (!isDrawing && currentMode !== "curve") return;
-
-  const { x, y } = toCanvasCoords(e);
-  const endX = snap(x);
-  const endY = snap(y);
-
-  if (currentMode === "curve" && curvePoints.length === 2) {
-    preview = {
-      type: "curve",
-      points: [curvePoints[0], { x: snap(x), y: snap(y) }, curvePoints[1]],
-      color: getColor(),
-      thickness: getThickness(),
-    };
-  } else if (isDrawing) {
-    preview = {
-      type: currentMode,
-      x: Math.min(startX, endX),
-      y: Math.min(startY, endY),
-      width: Math.abs(endX - startX),
-      height: Math.abs(endY - startY),
-      x2: endX,
-      y2: endY,
-      label: document.getElementById("labelInput").value.trim(),
-      color: getColor(),
-      thickness: getThickness(),
-      doorType: getDoorType(),
-      windowType: getWindowType(),
-    };
-  }
-
-  redraw();
-});
-
-canvas.addEventListener("mouseup", (e) => {
   if (!isDrawing) return;
   const { x, y } = toCanvasCoords(e);
   const endX = snap(x);
   const endY = snap(y);
-  const dx = endX - startX;
-  const dy = endY - startY;
+  const width = Math.abs(endX - startX);
+  const height = Math.abs(endY - startY);
+  const xStart = Math.min(startX, endX);
+  const yStart = Math.min(startY, endY);
 
-  if (currentMode === "line") {
-    const angle = Math.atan2(dy, dx);
-    const snapAngles = [0, Math.PI / 4, Math.PI / 2, (3 * Math.PI) / 4, Math.PI, -(Math.PI / 4), -(Math.PI / 2)];
-    const snappedAngle = snapAngles.reduce((a, b) =>
-      Math.abs(b - angle) < Math.abs(a - angle) ? b : a
-    );
-    const length = Math.sqrt(dx * dx + dy * dy);
-    const snappedDX = Math.cos(snappedAngle) * length;
-    const snappedDY = Math.sin(snappedAngle) * length;
+  preview = {
+    type: currentMode,
+    x: xStart,
+    y: yStart,
+    x2: endX,
+    y2: endY,
+    width,
+    height,
+    color: getColor(),
+    thickness: getThickness(),
+    label: getVal("labelInput", ""),
+    doorType: getDoorType(),
+    windowType: getWindowType(),
+  };
 
-    shapes.push({
-      type: "line",
-      x: startX,
-      y: startY,
-      x2: startX + snappedDX,
-      y2: startY + snappedDY,
-      label: document.getElementById("labelInput").value.trim(),
-      color: getColor(),
-      thickness: getThickness(),
-    });
-  } else {
-    shapes.push({
-      type: currentMode,
-      x: Math.min(startX, endX),
-      y: Math.min(startY, endY),
-      width: Math.abs(endX - startX),
-      height: Math.abs(endY - startY),
-      label: document.getElementById("labelInput").value.trim(),
-      color: getColor(),
-      thickness: getThickness(),
-      doorType: getDoorType(),
-      windowType: getWindowType(),
-    });
-  }
+  redraw();
+});
 
+canvas.addEventListener("mouseup", () => {
+  if (!preview) return;
+  if (currentMode !== "curve") shapes.push({ ...preview });
   isDrawing = false;
   preview = null;
   redraw();
@@ -162,13 +113,21 @@ canvas.addEventListener("mouseup", (e) => {
 
 function clearCanvas() {
   shapes = [];
-  preview = null;
   redraw();
+}
+
+function formatDistance(pixels) {
+  const real = (pixels / gridSize) * getScale();
+  const mode = getUnitMode();
+  if (mode === "decimal-feet") return `${real.toFixed(2)} ft`;
+  if (mode === "meters") return `${(real * 0.3048).toFixed(2)} m`;
+  const ft = Math.floor(real);
+  const inches = Math.round((real - ft) * 12);
+  return `${ft}′ ${inches}″`;
 }
 
 function drawGrid() {
   ctx.strokeStyle = "#eee";
-  ctx.lineWidth = 1;
   for (let x = 0; x < canvas.width; x += gridSize) {
     ctx.beginPath();
     ctx.moveTo(x, 0);
@@ -183,39 +142,10 @@ function drawGrid() {
   }
 }
 
-function formatDistance(pxLength) {
-  const scale = getScale();
-  const units = getUnitMode();
-  const realLength = pxLength / gridSize * scale;
-
-  if (units === "decimal-feet") return `${realLength.toFixed(2)} ft`;
-  if (units === "meters") return `${(realLength * 0.3048).toFixed(2)} m`;
-
-  const feet = Math.floor(realLength);
-  const inches = Math.round((realLength - feet) * 12);
-  return `${feet}′ ${inches}″`;
-}
-
-function drawRotatedLabel(x1, y1, x2, y2, text) {
-  const angle = Math.atan2(y2 - y1, x2 - x1);
-  const midX = (x1 + x2) / 2;
-  const midY = (y1 + y2) / 2;
-
-  ctx.save();
-  ctx.translate(midX, midY);
-  ctx.rotate(angle);
-  ctx.fillStyle = "#333";
-  ctx.font = "12px Arial";
-  ctx.textAlign = "center";
-  ctx.fillText(text, 0, -5);
-  ctx.restore();
-}
-
 function drawSymbol(shape) {
+  const { x, y, width, height, doorType, windowType } = shape;
   ctx.strokeStyle = shape.color;
   ctx.lineWidth = shape.thickness;
-
-  const { x, y, width, height, doorType, windowType } = shape;
 
   if (shape.type === "door") {
     ctx.beginPath();
@@ -239,24 +169,23 @@ function drawSymbol(shape) {
       ctx.moveTo(x + width * 0.7, y);
       ctx.lineTo(x + width * 0.7, y + height);
     } else if (windowType === "sliding") {
-      ctx.moveTo(x + width * 0.3, y);
-      ctx.lineTo(x + width * 0.7, y + height);
-      ctx.moveTo(x + width * 0.7, y);
-      ctx.lineTo(x + width * 0.3, y + height);
+      ctx.moveTo(x + width * 0.2, y);
+      ctx.lineTo(x + width * 0.8, y + height);
+      ctx.moveTo(x + width * 0.8, y);
+      ctx.lineTo(x + width * 0.2, y + height);
     }
     ctx.stroke();
   }
 }
 
 function drawShape(shape) {
-  ctx.strokeStyle = shape.color || "#000";
-  ctx.lineWidth = shape.thickness || 2;
+  ctx.strokeStyle = shape.color;
+  ctx.lineWidth = shape.thickness;
 
   if (shape.type === "room") {
     ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
-    const label = shape.label || formatDistance(shape.width);
-    ctx.fillStyle = "black";
-    ctx.fillText(label, shape.x + 5, shape.y + 15);
+    ctx.fillStyle = "#000";
+    ctx.fillText(shape.label || formatDistance(shape.width), shape.x + 5, shape.y + 15);
   }
 
   if (shape.type === "line") {
@@ -264,20 +193,14 @@ function drawShape(shape) {
     ctx.moveTo(shape.x, shape.y);
     ctx.lineTo(shape.x2, shape.y2);
     ctx.stroke();
-    const label = shape.label || formatDistance(
-      Math.sqrt((shape.x2 - shape.x) ** 2 + (shape.y2 - shape.y) ** 2)
-    );
-    drawRotatedLabel(shape.x, shape.y, shape.x2, shape.y2, label);
   }
 
-  if (shape.type === "curve" && shape.points.length === 3) {
+  if (shape.type === "curve" && shape.points?.length === 3) {
     ctx.beginPath();
     const [p1, cp, p2] = shape.points;
     ctx.moveTo(p1.x, p1.y);
     ctx.quadraticCurveTo(cp.x, cp.y, p2.x, p2.y);
     ctx.stroke();
-    const label = shape.label || "Curve";
-    drawRotatedLabel(p1.x, p1.y, p2.x, p2.y, label);
   }
 
   if (shape.type === "door" || shape.type === "window") {
@@ -286,9 +209,7 @@ function drawShape(shape) {
 }
 
 function redraw() {
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.setTransform(zoom, 0, 0, zoom, panX, panY);
   drawGrid();
   shapes.forEach(drawShape);
   if (preview) drawShape(preview);
@@ -322,14 +243,6 @@ document.getElementById("loadInput").addEventListener("change", function (e) {
     redraw();
   };
   reader.readAsText(file);
-});
-
-canvas.addEventListener("wheel", (e) => {
-  e.preventDefault();
-  const delta = e.deltaY > 0 ? 0.9 : 1.1;
-  zoom *= delta;
-  zoom = Math.max(0.4, Math.min(3, zoom));
-  redraw();
 });
   zoom = Math.max(0.4, Math.min(3, zoom));
   redraw();
