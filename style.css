@@ -1,17 +1,19 @@
 body {
   font-family: Arial, sans-serif;
-  background: #f4f4f4;
+  background: #3fc3e9;
   padding: 20px;
   text-align: center;
 }
-
 .controls {
   margin-bottom: 10px;
   line-height: 2;
 }
-
 canvas {
-  background: #fff;
+  background: white;
   border: 2px solid #333;
   cursor: crosshair;
+}
+button, select, input {
+  margin: 2px;
+  padding: 6px;
 }
