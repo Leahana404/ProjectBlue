@@ -26,7 +26,6 @@ function getScale() { return parseFloat(getVal("scaleInput", "1")); }
 function getUnitMode() { return getVal("unitSelect", "feet-inches"); }
 function getColor() { return getVal("colorInput", "#000000"); }
 function getThickness() { return parseInt(getVal("thicknessInput", "2")); }
-function getRotation() { return parseFloat(getVal("rotationInput", "0")); }
 
 function snap(val) {
   const spacing = baseGridSize / 2;
@@ -131,22 +130,6 @@ function drawShape(shape, isPreview = false) {
     ctx.fillStyle = shape.color;
     ctx.font = `${14 / zoomLevel}px Arial`;
     ctx.fillText(shape.label, shape.x, shape.y);
-  } else if (shape.type === "door" || shape.type === "window") {
-    ctx.save();
-    ctx.translate(shape.x, shape.y);
-    ctx.rotate((shape.rotation || 0) * Math.PI / 180);
-    ctx.strokeStyle = shape.color;
-    ctx.lineWidth = (shape.thickness || 2) / zoomLevel;
-    ctx.beginPath();
-    if (shape.type === "door") {
-      ctx.arc(0, 0, shape.radius, 0, Math.PI / 2);
-    } else {
-      ctx.moveTo(-shape.width / 2, 0);
-      ctx.lineTo(0, -shape.height);
-      ctx.lineTo(shape.width / 2, 0);
-    }
-    ctx.stroke();
-    ctx.restore();
   } else if (shape.type === "erase") {
     ctx.setLineDash([5, 3]);
     ctx.strokeStyle = "red";
@@ -268,18 +251,6 @@ canvas.addEventListener("mousemove", (e) => {
       width: Math.abs(endX - startX),
       height: Math.abs(endY - startY),
       color, thickness
-    };
-  } else if (currentMode === "door" || currentMode === "window") {
-    preview = {
-      type: currentMode,
-      x: startX,
-      y: startY,
-      rotation: getRotation(),
-      color,
-      thickness,
-      width: 40,
-      height: 40,
-      radius: 40
     };
   } else if (currentMode === "curve") {
     if (curveClicks === 1) {
