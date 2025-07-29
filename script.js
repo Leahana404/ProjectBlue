@@ -1,9 +1,6 @@
 const canvas = document.getElementById("blueprintCanvas");
 const ctx = canvas.getContext("2d");
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight - 70;
-
 let isDrawing = false;
 let startX, startY;
 let currentMode = "room";
@@ -13,11 +10,10 @@ let preview = null;
 let zoomLevel = 1;
 let offsetX = canvas.width / 2;
 let offsetY = canvas.height / 2;
-let curveClicks = 0;
-let curveTemp = {};
 let isDraggingCanvas = false;
 let dragStart = null;
-
+let curveClicks = 0;
+let curveTemp = {};
 const baseGridSize = 20;
 const minZoom = 0.2;
 const maxZoom = 4;
@@ -30,6 +26,7 @@ function getScale() { return parseFloat(getVal("scaleInput", "1")); }
 function getUnitMode() { return getVal("unitSelect", "feet-inches"); }
 function getColor() { return getVal("colorInput", "#000000"); }
 function getThickness() { return parseInt(getVal("thicknessInput", "2")); }
+function getRotation() { return parseFloat(getVal("rotationInput", "0")); }
 
 function snap(val) {
   const spacing = baseGridSize / 2;
@@ -75,6 +72,8 @@ function drawGrid() {
   const spacing = baseGridSize * zoomLevel;
   const width = canvas.width;
   const height = canvas.height;
+  const startX = -offsetX % spacing;
+  const startY = -offsetY % spacing;
 
   ctx.save();
   ctx.clearRect(0, 0, width, height);
@@ -132,6 +131,22 @@ function drawShape(shape, isPreview = false) {
     ctx.fillStyle = shape.color;
     ctx.font = `${14 / zoomLevel}px Arial`;
     ctx.fillText(shape.label, shape.x, shape.y);
+  } else if (shape.type === "door" || shape.type === "window") {
+    ctx.save();
+    ctx.translate(shape.x, shape.y);
+    ctx.rotate((shape.rotation || 0) * Math.PI / 180);
+    ctx.strokeStyle = shape.color;
+    ctx.lineWidth = (shape.thickness || 2) / zoomLevel;
+    ctx.beginPath();
+    if (shape.type === "door") {
+      ctx.arc(0, 0, shape.radius, 0, Math.PI / 2);
+    } else {
+      ctx.moveTo(-shape.width / 2, 0);
+      ctx.lineTo(0, -shape.height);
+      ctx.lineTo(shape.width / 2, 0);
+    }
+    ctx.stroke();
+    ctx.restore();
   } else if (shape.type === "erase") {
     ctx.setLineDash([5, 3]);
     ctx.strokeStyle = "red";
@@ -156,7 +171,6 @@ function drawLineLabel(x1, y1, x2, y2, color) {
 function formatDimensions(w, h, scale, unitMode) {
   const unitsW = w / baseGridSize;
   const unitsH = h / baseGridSize;
-
   const sw = unitsW * scale;
   const sh = unitsH * scale;
 
@@ -175,7 +189,6 @@ function formatDimensions(w, h, scale, unitMode) {
   }
 }
 
-// Canvas event handling
 canvas.addEventListener("mousedown", (e) => {
   const pos = toCanvasCoords(e);
   const snappedX = snap(pos.x);
@@ -205,14 +218,7 @@ canvas.addEventListener("mousedown", (e) => {
       curveClicks = 2;
     } else if (curveClicks === 2) {
       curveTemp.p2 = { x: snappedX, y: snappedY };
-      shapes.push({
-        type: "curve",
-        p1: curveTemp.p1,
-        cp: curveTemp.cp,
-        p2: curveTemp.p2,
-        color: getColor(),
-        thickness: getThickness()
-      });
+      shapes.push({ type: "curve", p1: curveTemp.p1, cp: curveTemp.cp, p2: curveTemp.p2, color: getColor(), thickness: getThickness() });
       saveState();
       curveClicks = 0;
       curveTemp = {};
@@ -245,11 +251,13 @@ canvas.addEventListener("mousemove", (e) => {
   const thickness = getThickness();
 
   if (currentMode === "erase" && isDrawing) {
-    const x = Math.min(startX, endX);
-    const y = Math.min(startY, endY);
-    const w = Math.abs(endX - startX);
-    const h = Math.abs(endY - startY);
-    preview = { type: "erase", x, y, width: w, height: h };
+    preview = {
+      type: "erase",
+      x: Math.min(startX, endX),
+      y: Math.min(startY, endY),
+      width: Math.abs(endX - startX),
+      height: Math.abs(endY - startY)
+    };
   } else if (currentMode === "line") {
     preview = { type: "line", x1: startX, y1: startY, x2: endX, y2: endY, color, thickness };
   } else if (currentMode === "room") {
@@ -261,23 +269,23 @@ canvas.addEventListener("mousemove", (e) => {
       height: Math.abs(endY - startY),
       color, thickness
     };
+  } else if (currentMode === "door" || currentMode === "window") {
+    preview = {
+      type: currentMode,
+      x: startX,
+      y: startY,
+      rotation: getRotation(),
+      color,
+      thickness,
+      width: 40,
+      height: 40,
+      radius: 40
+    };
   } else if (currentMode === "curve") {
     if (curveClicks === 1) {
-      preview = {
-        type: "curve",
-        p1: curveTemp.p1,
-        cp: { x: endX, y: endY },
-        p2: { x: endX, y: endY },
-        color, thickness
-      };
+      preview = { type: "curve", p1: curveTemp.p1, cp: { x: endX, y: endY }, p2: { x: endX, y: endY }, color, thickness };
     } else if (curveClicks === 2) {
-      preview = {
-        type: "curve",
-        p1: curveTemp.p1,
-        cp: curveTemp.cp,
-        p2: { x: endX, y: endY },
-        color, thickness
-      };
+      preview = { type: "curve", p1: curveTemp.p1, cp: curveTemp.cp, p2: { x: endX, y: endY }, color, thickness };
     }
   }
 
@@ -289,25 +297,22 @@ canvas.addEventListener("mouseup", () => {
     isDraggingCanvas = false;
     return;
   }
-
   if (!isDrawing || !preview) return;
 
   if (currentMode === "erase") {
     const { x, y, width, height } = preview;
     shapes = shapes.filter(s => {
-      if (s.type === "curve") return true;
       const sx = s.x ?? 0;
       const sy = s.y ?? 0;
       const sw = s.width ?? 0;
       const sh = s.height ?? 0;
       return !(sx >= x && sy >= y && sx <= x + width && sy <= y + height);
     });
-    saveState();
   } else if (currentMode !== "curve") {
     shapes.push(preview);
-    saveState();
   }
 
+  saveState();
   preview = null;
   isDrawing = false;
   redraw();
@@ -334,18 +339,13 @@ canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
   const zoomFactor = 1.1;
   const mouse = toCanvasCoords(e);
-
   const delta = e.deltaY < 0 ? zoomFactor : 1 / zoomFactor;
   const newZoom = Math.min(maxZoom, Math.max(minZoom, zoomLevel * delta));
-
   const wx = (mouse.x * zoomLevel + offsetX);
   const wy = (mouse.y * zoomLevel + offsetY);
-
   zoomLevel = newZoom;
-
   offsetX = wx - mouse.x * zoomLevel;
   offsetY = wy - mouse.y * zoomLevel;
-
   redraw();
 });
 
