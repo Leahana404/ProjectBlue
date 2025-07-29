@@ -1,18 +1,5 @@
-const devicePixelRatio = window.devicePixelRatio || 1;
-
 const canvas = document.getElementById("blueprintCanvas");
 const ctx = canvas.getContext("2d");
-
-function adjustCanvasSize() {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  
-  canvas.width = width * devicePixelRatio;
-  canvas.height = height * devicePixelRatio;
-  canvas.style.width = `${width}px`;
-  canvas.style.height = `${height}px`;
-  ctx.scale(devicePixelRatio, devicePixelRatio);
-}
 
 let isDrawing = false;
 let startX, startY;
@@ -389,6 +376,5 @@ canvas.addEventListener("wheel", (e) => {
 
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
-adjustCanvasSize();
 saveState();
 redraw();
