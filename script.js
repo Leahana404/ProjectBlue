@@ -8,7 +8,8 @@ let shapes = [];
 let history = [], future = [];
 let preview = null;
 let zoomLevel = 1;
-let offsetX = 500, offsetY = 500;
+let offsetX = canvas.width / 2;
+let offsetY = canvas.height / 2;
 let curveClicks = 0;
 let curveTemp = {};
 let isDraggingCanvas = false;
@@ -22,7 +23,6 @@ function getVal(id, fallback) {
   const el = document.getElementById(id);
   return el ? el.value : fallback;
 }
-
 function getScale() { return parseFloat(getVal("scaleInput", "1")); }
 function getUnitMode() { return getVal("unitSelect", "feet-inches"); }
 function getColor() { return getVal("colorInput", "#000000"); }
@@ -117,18 +117,22 @@ function drawShape(shape, isPreview = false) {
     ctx.lineTo(shape.x2, shape.y2);
     ctx.stroke();
     drawLineLabel(shape.x1, shape.y1, shape.x2, shape.y2, shape.color);
+
   } else if (shape.type === "room") {
     ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
     drawRoomLabels(shape);
+
   } else if (shape.type === "curve") {
     ctx.beginPath();
     ctx.moveTo(shape.p1.x, shape.p1.y);
     ctx.quadraticCurveTo(shape.cp.x, shape.cp.y, shape.p2.x, shape.p2.y);
     ctx.stroke();
+
   } else if (shape.type === "label") {
     ctx.fillStyle = shape.color;
     ctx.font = `${14 / zoomLevel}px Arial`;
     ctx.fillText(shape.label, shape.x, shape.y);
+
   } else if (shape.type === "erase") {
     ctx.setLineDash([5, 3]);
     ctx.strokeStyle = "red";
@@ -142,7 +146,7 @@ function drawLineLabel(x1, y1, x2, y2, color) {
   const dx = x2 - x1;
   const dy = y2 - y1;
   const distance = Math.sqrt(dx * dx + dy * dy);
-  const label = formatLength(distance);
+  const label = formatLength(distance, getScale(), getUnitMode());
   const midX = (x1 + x2) / 2;
   const midY = (y1 + y2) / 2;
   ctx.fillStyle = color;
@@ -151,42 +155,51 @@ function drawLineLabel(x1, y1, x2, y2, color) {
 }
 
 function drawRoomLabels(shape) {
+  const { x, y, width, height } = shape;
   const scale = getScale();
-  const units = getUnitMode();
-  const wLabel = formatLength(shape.width);
-  const hLabel = formatLength(shape.height);
+  const unitMode = getUnitMode();
 
-  ctx.fillStyle = shape.color;
+  const labelTop = formatLength(width, scale, unitMode);
+  const labelRight = formatLength(height, scale, unitMode);
+
+  ctx.fillStyle = shape.color || "#000";
   ctx.font = `${12 / zoomLevel}px Arial`;
 
-  // Horizontal label (bottom center)
-  ctx.fillText(wLabel, shape.x + shape.width / 2 - 20, shape.y + shape.height + 15);
+  // Top side (centered)
+  ctx.fillText(labelTop, x + width / 2 - ctx.measureText(labelTop).width / 2, y - 5);
 
-  // Vertical label (left center)
+  // Right side (rotated)
+  const x1 = x + width;
+  const y1 = y;
+  const x2 = x + width;
+  const y2 = y + height;
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2;
+
   ctx.save();
-  ctx.translate(shape.x - 20, shape.y + shape.height / 2);
-  ctx.rotate(-Math.PI / 2);
-  ctx.fillText(hLabel, 0, 0);
+  ctx.translate(midX, midY);
+  ctx.rotate(Math.PI / 2);
+  ctx.fillText(labelRight, 5, -5);
   ctx.restore();
 }
 
-function formatLength(rawLength) {
-  const units = getUnitMode();
-  const scale = getScale();
-  const unitsLong = rawLength / baseGridSize * scale;
+function formatLength(length, scale, unitMode) {
+  const scaled = (length / baseGridSize) * scale;
 
-  if (units === "feet-inches") {
-    const feet = Math.floor(unitsLong);
-    const inches = Math.round((unitsLong - feet) * 12);
+  if (unitMode === "feet-inches") {
+    const feet = Math.floor(scaled);
+    const inches = Math.round((scaled - feet) * 12);
     return `${feet}'${inches}"`;
-  } else if (units === "decimal-feet") {
-    return `${unitsLong.toFixed(2)}ft`;
-  } else if (units === "metric") {
-    return `${(unitsLong * 0.3048).toFixed(2)}m`;
+  } else if (unitMode === "decimal-feet") {
+    return `${scaled.toFixed(2)} ft`;
+  } else if (unitMode === "metric") {
+    return `${(scaled * 0.3048).toFixed(2)} m`;
   } else {
-    return `${unitsLong.toFixed(1)}`;
+    return `${scaled.toFixed(1)}`;
   }
 }
+
+// ======================= Mouse Events ===========================
 
 canvas.addEventListener("mousedown", (e) => {
   const pos = toCanvasCoords(e);
@@ -262,8 +275,10 @@ canvas.addEventListener("mousemove", (e) => {
     const w = Math.abs(endX - startX);
     const h = Math.abs(endY - startY);
     preview = { type: "erase", x, y, width: w, height: h };
+
   } else if (currentMode === "line") {
     preview = { type: "line", x1: startX, y1: startY, x2: endX, y2: endY, color, thickness };
+
   } else if (currentMode === "room") {
     preview = {
       type: "room",
@@ -273,6 +288,7 @@ canvas.addEventListener("mousemove", (e) => {
       height: Math.abs(endY - startY),
       color, thickness
     };
+
   } else if (currentMode === "curve") {
     if (curveClicks === 1) {
       preview = {
@@ -307,28 +323,12 @@ canvas.addEventListener("mouseup", () => {
   if (currentMode === "erase") {
     const { x, y, width, height } = preview;
     shapes = shapes.filter(s => {
-      if (s.type === "line") {
-        return !(
-          s.x1 >= x && s.x1 <= x + width &&
-          s.y1 >= y && s.y1 <= y + height &&
-          s.x2 >= x && s.x2 <= x + width &&
-          s.y2 >= y && s.y2 <= y + height
-        );
-      } else if (s.type === "room") {
-        return !(s.x >= x && s.y >= y &&
-                 s.x + s.width <= x + width &&
-                 s.y + s.height <= y + height);
-      } else if (s.type === "curve") {
-        return !(s.p1.x >= x && s.p1.x <= x + width &&
-                 s.p1.y >= y && s.p1.y <= y + height &&
-                 s.cp.x >= x && s.cp.x <= x + width &&
-                 s.cp.y >= y && s.cp.y <= y + height &&
-                 s.p2.x >= x && s.p2.x <= x + width &&
-                 s.p2.y >= y && s.p2.y <= y + height);
-      } else if (s.type === "label") {
-        return !(s.x >= x && s.x <= x + width && s.y >= y && s.y <= y + height);
-      }
-      return true;
+      if (s.type === "curve") return true;
+      const sx = s.x ?? 0;
+      const sy = s.y ?? 0;
+      const sw = s.width ?? 0;
+      const sh = s.height ?? 0;
+      return !(sx >= x && sy >= y && sx <= x + width && sy <= y + height);
     });
     saveState();
   } else if (currentMode !== "curve") {
@@ -379,5 +379,6 @@ canvas.addEventListener("wheel", (e) => {
 
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
+// Initialize
 saveState();
 redraw();
