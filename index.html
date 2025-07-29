@@ -1,49 +1,32 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Blueprint Builder</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <h2>Blueprint Drawing Tool</h2>
+<div id="controls">
+  <!-- Tool buttons -->
+  <button onclick="setMode('room')">Room</button>
+  <button onclick="setMode('line')">Line</button>
+  <button onclick="setMode('curve')">Curve</button>
+  <button onclick="setMode('label')">Label</button>
+  <button onclick="setMode('erase')">Eraser</button>
 
-  <div id="controls">
-    <!-- Tool buttons -->
-    <button onclick="setMode('room')">Room</button>
-    <button onclick="setMode('line')">Line</button>
-    <button onclick="setMode('curve')">Curve</button>
-    <button onclick="setMode('door')">Door</button>
-    <button onclick="setMode('window')">Window</button>
-    <button onclick="setMode('label')">Label</button>
-    <button onclick="setMode('erase')">Eraser</button>
+  <!-- Actions -->
+  <button onclick="undo()">Undo</button>
+  <button onclick="redo()">Redo</button>
+  <button onclick="downloadImage()">Download PNG</button>
 
-    <!-- Actions -->
-    <button onclick="undo()">Undo</button>
-    <button onclick="redo()">Redo</button>
-    <button onclick="downloadImage()">Download PNG</button>
+  <!-- Inputs -->
+  <input id="colorInput" type="color" value="#000000" title="Line Color" />
+  <input id="thicknessInput" type="number" min="1" max="10" value="2" title="Line Thickness" />
+  <input id="labelInput" type="text" placeholder="Label (optional)" title="Shape label" />
+  
+  <label for="scaleInput" title="Scale - 1 means each grid square = 1 foot">
+    Scale: 
+    <input id="scaleInput" type="number" min="0.1" step="0.1" value="1" />
+  </label>
 
-    <!-- Inputs -->
-    <input id="colorInput" type="color" value="#000000" title="Line Color" />
-    <input id="thicknessInput" type="number" min="1" max="10" value="2" title="Line Thickness" />
-    <input id="labelInput" type="text" placeholder="Label (optional)" title="Shape label" />
-    
-    <label for="scaleInput" title="Scale - 1 means each grid square = 1 foot">
-      Scale: 
-      <input id="scaleInput" type="number" min="0.1" step="0.1" value="1" />
-    </label>
+  <select id="unitSelect" title="Units">
+    <option value="feet-inches">ft/in</option>
+    <option value="decimal-feet">decimal ft</option>
+    <option value="metric">meters</option>
+  </select>
 
-    <select id="unitSelect" title="Units">
-      <option value="feet-inches">ft/in</option>
-      <option value="decimal-feet">decimal ft</option>
-      <option value="metric">meters</option>
-    </select>
-
-    <input id="rotationInput" type="number" value="0" title="Rotation (degrees)" />
-    <input id="layerInput" type="number" value="0" title="Layer number" />
-  </div>
-
-  <canvas id="blueprintCanvas" width="1600" height="1000"></canvas>
-  <script src="script.js"></script>
-</body>
-</html>
+  <input id="rotationInput" type="number" value="0" title="Rotation (degrees)" />
+  <input id="layerInput" type="number" value="0" title="Layer number" />
+</div>
