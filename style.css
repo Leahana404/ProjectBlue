@@ -17,7 +17,7 @@ body {
   flex-wrap: wrap;
   gap: 10px;
   z-index: 10;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 #controls > * {
@@ -28,11 +28,10 @@ body {
 canvas {
   display: block;
   position: absolute;
-  top: 70px; /* below the controls */
+  top: 70px; /* accounts for control height */
   left: 0;
   width: 100vw;
   height: calc(100vh - 70px);
   background: #9fc3e9;
-  border: none;
   cursor: crosshair;
 }
