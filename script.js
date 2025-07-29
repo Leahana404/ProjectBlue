@@ -215,32 +215,34 @@ function formatLength(length, scale, unitMode) {
 // Erase function for curves
 function eraseShape(shape, x, y, width, height) {
   if (shape.type === "curve") {
-    const curveBoundingBox = getCurveBoundingBox(shape);
-    const isInside = isRectIntersecting(x, y, width, height, curveBoundingBox);
-    return isInside;
-  } else if (shape.type === "line" || shape.type === "room" || shape.type === "label") {
-    return shape.x >= x && shape.y >= y && shape.x + shape.width <= x + width && shape.y + shape.height <= y + height;
+    // Check if any point of the curve is inside the eraser box
+    const isInside = isPointInside(x, y, width, height, shape.p1.x, shape.p1.y) ||
+                     isPointInside(x, y, width, height, shape.cp.x, shape.cp.y) ||
+                     isPointInside(x, y, width, height, shape.p2.x, shape.p2.y);
+
+    if (isInside) return true;
+
+    // Otherwise, check if curve intersects the eraser box by sampling points along the curve
+    for (let t = 0; t <= 1; t += 0.1) {
+      const point = getPointOnCurve(shape.p1, shape.cp, shape.p2, t);
+      if (isPointInside(x, y, width, height, point.x, point.y)) {
+        return true;
+      }
+    }
   }
   return false;
+}
+
+// Get a point on the quadratic curve at a given time t (0 to 1)
+function getPointOnCurve(p1, cp, p2, t) {
+  const x = (1 - t) * (1 - t) * p1.x + 2 * (1 - t) * t * cp.x + t * t * p2.x;
+  const y = (1 - t) * (1 - t) * p1.y + 2 * (1 - t) * t * cp.y + t * t * p2.y;
+  return { x, y };
 }
 
 // Helper function to check if a point is inside the eraser box
 function isPointInside(x, y, width, height, pointX, pointY) {
   return pointX >= x && pointY >= y && pointX <= x + width && pointY <= y + height;
-}
-
-// Helper function to check if a bounding box is inside another bounding box
-function isRectIntersecting(x1, y1, w1, h1, { x, y, width, height }) {
-  return !(x + width < x1 || x > x1 + w1 || y + height < y1 || y > y1 + h1);
-}
-
-// Get the bounding box of the curve (approximated as the smallest enclosing box)
-function getCurveBoundingBox(curve) {
-  const minX = Math.min(curve.p1.x, curve.cp.x, curve.p2.x);
-  const maxX = Math.max(curve.p1.x, curve.cp.x, curve.p2.x);
-  const minY = Math.min(curve.p1.y, curve.cp.y, curve.p2.y);
-  const maxY = Math.max(curve.p1.y, curve.cp.y, curve.p2.y);
-  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
 // Mouseup event listener
