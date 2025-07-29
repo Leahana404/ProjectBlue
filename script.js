@@ -164,14 +164,25 @@ function drawRoomLabels(shape) {
   ctx.fillStyle = shape.color || "#000";
   ctx.font = `${12 / zoomLevel}px Arial`;
 
-  // Top center
+  // Top center (same as before)
   ctx.fillText(labelTop, x + width / 2 - ctx.measureText(labelTop).width / 2, y - 5);
 
-  // Right middle (rotated)
+  // Right side label – positioned like a line label
+  const x1 = x + width;
+  const y1 = y;
+  const x2 = x + width;
+  const y2 = y + height;
+
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const angle = Math.atan2(dy, dx);
+
   ctx.save();
-  ctx.translate(x + width + 5, y + height / 2);
-  ctx.rotate(-Math.PI / 2);
-  ctx.fillText(labelRight, -ctx.measureText(labelRight).width / 2, 0);
+  ctx.translate(midX, midY);
+  ctx.rotate(angle);
+  ctx.fillText(labelRight, 5, -5);
   ctx.restore();
 }
 
