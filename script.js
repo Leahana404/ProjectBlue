@@ -9,8 +9,8 @@ let history = [], future = [];
 let preview = null;
 let zoomLevel = 1;
 let offsetX = 0, offsetY = 0;
-let dragStart = null;
 let isDragging = false;
+let dragStart = null;
 let curveClicks = 0;
 let curveTemp = {};
 
@@ -51,12 +51,15 @@ function saveState() {
   if (history.length > 100) history.shift();
   future = [];
 }
+
 function undo() {
-  if (history.length === 0) return;
-  future.push(JSON.stringify(shapes));
-  shapes = JSON.parse(history.pop());
-  redraw();
+  if (history.length > 0) {
+    future.push(JSON.stringify(shapes));
+    shapes = history.length > 1 ? JSON.parse(history.pop()) : [];
+    redraw();
+  }
 }
+
 function redo() {
   if (future.length === 0) return;
   history.push(JSON.stringify(shapes));
@@ -69,23 +72,21 @@ function drawGrid() {
   const width = canvas.width;
   const height = canvas.height;
 
-  const startX = -offsetX % spacing;
-  const startY = -offsetY % spacing;
-
   ctx.save();
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0, 0, width, height);
+  ctx.translate(offsetX % spacing, offsetY % spacing);
   ctx.beginPath();
   ctx.strokeStyle = '#e0e0e0';
   ctx.lineWidth = 1;
 
-  for (let x = startX; x < width; x += spacing) {
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, height);
+  for (let x = -spacing; x <= width + spacing; x += spacing) {
+    ctx.moveTo(x, -spacing);
+    ctx.lineTo(x, height + spacing);
   }
 
-  for (let y = startY; y < height; y += spacing) {
-    ctx.moveTo(0, y);
-    ctx.lineTo(width, y);
+  for (let y = -spacing; y <= height + spacing; y += spacing) {
+    ctx.moveTo(-spacing, y);
+    ctx.lineTo(width + spacing, y);
   }
 
   ctx.stroke();
@@ -95,7 +96,6 @@ function drawGrid() {
 function redraw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
-
   shapes.forEach(s => drawShape(s));
   if (preview) drawShape(preview, true);
 }
@@ -156,7 +156,6 @@ function drawLineLabel(x1, y1, x2, y2, color) {
 function formatDimensions(w, h, scale, unitMode) {
   const unitsW = w / baseGridSize;
   const unitsH = h / baseGridSize;
-
   const sw = unitsW * scale;
   const sh = unitsH * scale;
 
@@ -175,7 +174,6 @@ function formatDimensions(w, h, scale, unitMode) {
   }
 }
 
-// === Drawing Events ===
 canvas.addEventListener("mousedown", (e) => {
   const pos = toCanvasCoords(e);
   const snappedX = snap(pos.x);
@@ -315,6 +313,22 @@ canvas.addEventListener("mouseup", (e) => {
   redraw();
 });
 
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const delta = e.deltaY < 0 ? 1.1 : 0.9;
+  const mouse = toCanvasCoords(e);
+  const wx = mouse.x * zoomLevel + offsetX;
+  const wy = mouse.y * zoomLevel + offsetY;
+
+  zoomLevel *= delta;
+  offsetX = wx - mouse.x * zoomLevel;
+  offsetY = wy - mouse.y * zoomLevel;
+
+  redraw();
+});
+
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
 canvas.addEventListener("dblclick", (e) => {
   const pos = toCanvasCoords(e);
   const text = prompt("Enter label text:");
@@ -332,22 +346,5 @@ canvas.addEventListener("dblclick", (e) => {
   }
 });
 
-canvas.addEventListener("wheel", (e) => {
-  e.preventDefault();
-  const delta = e.deltaY < 0 ? 1.1 : 0.9;
-  const mouse = toCanvasCoords(e);
-  const wx = (mouse.x * zoomLevel + offsetX);
-  const wy = (mouse.y * zoomLevel + offsetY);
-
-  zoomLevel *= delta;
-  offsetX = wx - mouse.x * zoomLevel;
-  offsetY = wy - mouse.y * zoomLevel;
-
-  redraw();
-});
-
-canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-
-// Initialize
 redraw();
 saveState();
