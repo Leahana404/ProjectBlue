@@ -2,11 +2,46 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Blueprint Builder</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>Blueprint Drawing App</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      height: 100%;
+      width: 100%;
+    }
+
+    #toolbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: #f0f0f0;
+      padding: 5px;
+      z-index: 10;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    #toolbar button, #toolbar input, #toolbar select {
+      margin: 2px;
+      padding: 4px 8px;
+    }
+
+    #blueprintCanvas {
+      position: absolute;
+      top: 40px;
+      left: 0;
+      width: 100%;
+      height: calc(100% - 40px);
+      display: block;
+    }
+  </style>
 </head>
 <body>
-  <div id="controls">
+  <div id="toolbar">
     <button onclick="setMode('room')">Room</button>
     <button onclick="setMode('line')">Line</button>
     <button onclick="setMode('curve')">Curve</button>
@@ -15,18 +50,16 @@
     <button onclick="undo()">Undo</button>
     <button onclick="redo()">Redo</button>
     <button onclick="downloadImage()">Download PNG</button>
-    <input id="colorInput" type="color" value="#000000" />
-    <input id="thicknessInput" type="number" min="1" max="10" value="2" />
-    <input id="labelInput" type="text" placeholder="Label (optional)" />
-    <label for="scaleInput">Scale: </label>
-    <input id="scaleInput" type="number" min="0.1" step="0.1" value="1" />
+
+    <input type="color" id="colorInput" value="#000000">
+    <input type="number" id="thicknessInput" value="2" min="1" max="10" style="width: 50px;">
+    <label for="scaleInput">Scale:</label>
+    <input type="number" id="scaleInput" value="1" min="0.1" step="0.1" style="width: 50px;">
     <select id="unitSelect">
       <option value="feet-inches">ft/in</option>
       <option value="decimal-feet">decimal ft</option>
-      <option value="metric">meters</option>
+      <option value="metric">m</option>
     </select>
-    <input id="rotationInput" type="number" value="0" style="display: none;" />
-    <input id="layerInput" type="number" value="0" style="display: none;" />
   </div>
 
   <canvas id="blueprintCanvas"></canvas>
