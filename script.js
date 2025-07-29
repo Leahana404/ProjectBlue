@@ -9,6 +9,8 @@ let history = [], future = [];
 let preview = null;
 let zoomLevel = 1;
 let offsetX = 0, offsetY = 0;
+let dragStart = null;
+let isDragging = false;
 let curveClicks = 0;
 let curveTemp = {};
 
@@ -22,6 +24,7 @@ function getScale() { return parseFloat(getVal("scaleInput", "1")); }
 function getUnitMode() { return getVal("unitSelect", "feet-inches"); }
 function getColor() { return getVal("colorInput", "#000000"); }
 function getThickness() { return parseInt(getVal("thicknessInput", "2")); }
+function getRotation() { return parseFloat(getVal("rotationInput", "0")); }
 
 function snap(val) {
   const spacing = baseGridSize / 2;
@@ -48,18 +51,12 @@ function saveState() {
   if (history.length > 100) history.shift();
   future = [];
 }
-
 function undo() {
-  if (history.length === 0) {
-    shapes = [];
-    redraw();
-    return;
-  }
+  if (history.length === 0) return;
   future.push(JSON.stringify(shapes));
   shapes = JSON.parse(history.pop());
   redraw();
 }
-
 function redo() {
   if (future.length === 0) return;
   history.push(JSON.stringify(shapes));
@@ -97,6 +94,7 @@ function drawGrid() {
 function redraw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
+
   shapes.forEach(s => drawShape(s));
   if (preview) drawShape(preview, true);
 }
@@ -114,21 +112,25 @@ function drawShape(shape, isPreview = false) {
     ctx.lineTo(shape.x2, shape.y2);
     ctx.stroke();
     drawLineLabel(shape.x1, shape.y1, shape.x2, shape.y2, shape.color);
+
   } else if (shape.type === "room") {
     ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
     const label = formatDimensions(shape.width, shape.height, getScale(), getUnitMode());
     ctx.fillStyle = shape.color;
     ctx.font = `${12 / zoomLevel}px Arial`;
     ctx.fillText(label, shape.x + 5, shape.y + 15);
+
   } else if (shape.type === "curve") {
     ctx.beginPath();
     ctx.moveTo(shape.p1.x, shape.p1.y);
     ctx.quadraticCurveTo(shape.cp.x, shape.cp.y, shape.p2.x, shape.p2.y);
     ctx.stroke();
+
   } else if (shape.type === "label") {
     ctx.fillStyle = shape.color;
     ctx.font = `${14 / zoomLevel}px Arial`;
     ctx.fillText(shape.label, shape.x, shape.y);
+
   } else if (shape.type === "erase") {
     ctx.setLineDash([5, 3]);
     ctx.strokeStyle = "red";
@@ -151,8 +153,8 @@ function drawLineLabel(x1, y1, x2, y2, color) {
 }
 
 function formatDimensions(w, h, scale, unitMode) {
-  const unitsW = w / (baseGridSize * zoomLevel);
-  const unitsH = h / (baseGridSize * zoomLevel);
+  const unitsW = w / baseGridSize;
+  const unitsH = h / baseGridSize;
 
   const sw = unitsW * scale;
   const sh = unitsH * scale;
@@ -172,6 +174,7 @@ function formatDimensions(w, h, scale, unitMode) {
   }
 }
 
+// === Drawing Events ===
 canvas.addEventListener("mousedown", (e) => {
   const pos = toCanvasCoords(e);
   const snappedX = snap(pos.x);
@@ -311,22 +314,6 @@ canvas.addEventListener("mouseup", (e) => {
   redraw();
 });
 
-canvas.addEventListener("wheel", (e) => {
-  e.preventDefault();
-  const delta = e.deltaY < 0 ? 1.1 : 0.9;
-  const mouse = toCanvasCoords(e);
-  const wx = (mouse.x * zoomLevel + offsetX);
-  const wy = (mouse.y * zoomLevel + offsetY);
-
-  zoomLevel *= delta;
-  offsetX = wx - mouse.x * zoomLevel;
-  offsetY = wy - mouse.y * zoomLevel;
-
-  redraw();
-});
-
-canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-
 canvas.addEventListener("dblclick", (e) => {
   const pos = toCanvasCoords(e);
   const text = prompt("Enter label text:");
@@ -344,5 +331,22 @@ canvas.addEventListener("dblclick", (e) => {
   }
 });
 
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const delta = e.deltaY < 0 ? 1.1 : 0.9;
+  const mouse = toCanvasCoords(e);
+  const wx = (mouse.x * zoomLevel + offsetX);
+  const wy = (mouse.y * zoomLevel + offsetY);
+
+  zoomLevel *= delta;
+  offsetX = wx - mouse.x * zoomLevel;
+  offsetY = wy - mouse.y * zoomLevel;
+
+  redraw();
+});
+
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+// Initialize
 redraw();
 saveState();
