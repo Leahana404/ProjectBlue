@@ -28,10 +28,10 @@ body {
 canvas {
   display: block;
   position: absolute;
-  top: 70px; /* push canvas below fixed controls */
+  top: 70px;
   left: 0;
-  width: 100vw;
-  height: calc(100vh - 70px);
+  right: 0;
+  bottom: 0;
   background: #9fc3e9;
   border: none;
   cursor: crosshair;
