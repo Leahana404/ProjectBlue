@@ -22,10 +22,9 @@ function getScale() { return parseFloat(getVal("scaleInput", "1")); }
 function getUnitMode() { return getVal("unitSelect", "feet-inches"); }
 function getColor() { return getVal("colorInput", "#000000"); }
 function getThickness() { return parseInt(getVal("thicknessInput", "2")); }
-function getRotation() { return parseFloat(getVal("rotationInput", "0")); }
 
 function snap(val) {
-  const spacing = baseGridSize / 2; // Snap to half-grid steps
+  const spacing = baseGridSize / 2;
   return Math.round(val / spacing) * spacing;
 }
 
@@ -306,6 +305,5 @@ canvas.addEventListener("dblclick", (e) => {
   }
 });
 
-// ✅ Initialize with empty state so Undo works fully
 redraw();
 saveState();
