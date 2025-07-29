@@ -177,6 +177,13 @@ canvas.addEventListener("mousedown", (e) => {
   const snappedX = snap(pos.x);
   const snappedY = snap(pos.y);
 
+  if (e.button === 1 || e.button === 2) {
+    isDragging = true;
+    dragStart = { x: e.clientX, y: e.clientY };
+    canvas.style.cursor = "grab";
+    return;
+  }
+
   if (currentMode === "erase") {
     isDrawing = true;
     startX = snappedX;
@@ -218,6 +225,16 @@ canvas.addEventListener("mousedown", (e) => {
 });
 
 canvas.addEventListener("mousemove", (e) => {
+  if (isDragging && dragStart) {
+    const dx = e.clientX - dragStart.x;
+    const dy = e.clientY - dragStart.y;
+    offsetX += dx;
+    offsetY += dy;
+    dragStart = { x: e.clientX, y: e.clientY };
+    redraw();
+    return;
+  }
+
   if (!isDrawing && currentMode !== "curve") return;
 
   const pos = toCanvasCoords(e);
@@ -264,7 +281,13 @@ canvas.addEventListener("mousemove", (e) => {
   redraw();
 });
 
-canvas.addEventListener("mouseup", () => {
+canvas.addEventListener("mouseup", (e) => {
+  if (isDragging) {
+    isDragging = false;
+    canvas.style.cursor = "crosshair";
+    return;
+  }
+
   if (!isDrawing || !preview) return;
 
   if (currentMode === "erase") {
@@ -287,6 +310,22 @@ canvas.addEventListener("mouseup", () => {
   isDrawing = false;
   redraw();
 });
+
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const delta = e.deltaY < 0 ? 1.1 : 0.9;
+  const mouse = toCanvasCoords(e);
+  const wx = (mouse.x * zoomLevel + offsetX);
+  const wy = (mouse.y * zoomLevel + offsetY);
+
+  zoomLevel *= delta;
+  offsetX = wx - mouse.x * zoomLevel;
+  offsetY = wy - mouse.y * zoomLevel;
+
+  redraw();
+});
+
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
 canvas.addEventListener("dblclick", (e) => {
   const pos = toCanvasCoords(e);
