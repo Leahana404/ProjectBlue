@@ -25,7 +25,7 @@ canvas {
   display: block;
   border: 2px solid #333;
   cursor: crosshair;
-  background: #9fc3e9;
+  background: white;;
   max-width: 100%;
   height: auto;
 }
