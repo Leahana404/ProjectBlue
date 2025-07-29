@@ -6,7 +6,7 @@ const devicePixelRatio = window.devicePixelRatio || 1;
 
 let isDrawing = false;
 let startX, startY;
-let currentMode = "room"; // Start in room mode
+let currentMode = "room";
 let shapes = [];
 let history = [], future = [];
 let preview = null;
@@ -22,21 +22,6 @@ const baseGridSize = 20;
 const minZoom = 0.2;
 const maxZoom = 4;
 
-// Update the canvas size based on the window size and device pixel ratio
-function resizeCanvas() {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-
-  canvas.width = width * devicePixelRatio;
-  canvas.height = height * devicePixelRatio;
-  canvas.style.width = `${width}px`;
-  canvas.style.height = `${height}px`;
-  ctx.scale(devicePixelRatio, devicePixelRatio);
-}
-
-resizeCanvas();
-
-// Function to get values from inputs
 function getVal(id, fallback) {
   const el = document.getElementById(id);
   return el ? el.value : fallback;
@@ -60,7 +45,6 @@ function toCanvasCoords(e) {
   };
 }
 
-// Set drawing mode when buttons are clicked
 function setMode(mode) {
   currentMode = mode;
   curveClicks = 0;
@@ -68,14 +52,12 @@ function setMode(mode) {
   preview = null;
 }
 
-// Save the current state of shapes to allow undo/redo functionality
 function saveState() {
   history.push(JSON.stringify(shapes));
   if (history.length > 100) history.shift();
   future = [];
 }
 
-// Undo functionality
 function undo() {
   if (history.length === 0) return;
   future.push(JSON.stringify(shapes));
@@ -83,7 +65,6 @@ function undo() {
   redraw();
 }
 
-// Redo functionality
 function redo() {
   if (future.length === 0) return;
   history.push(JSON.stringify(shapes));
@@ -91,7 +72,18 @@ function redo() {
   redraw();
 }
 
-// Draw the grid on the canvas
+// Resize the canvas to fit window and adjust for device pixel ratio
+function resizeCanvas() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+
+  canvas.width = width * devicePixelRatio;
+  canvas.height = height * devicePixelRatio;
+  canvas.style.width = ${width}px;
+  canvas.style.height = ${height}px;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+}
+
 function drawGrid() {
   const spacing = baseGridSize * zoomLevel;
   const width = canvas.width;
@@ -121,7 +113,6 @@ function drawGrid() {
   ctx.restore();
 }
 
-// Redraw all shapes on the canvas
 function redraw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
@@ -129,7 +120,6 @@ function redraw() {
   if (preview) drawShape(preview, true);
 }
 
-// Draw individual shapes
 function drawShape(shape, isPreview = false) {
   ctx.save();
   ctx.translate(offsetX, offsetY);
@@ -156,7 +146,7 @@ function drawShape(shape, isPreview = false) {
 
   } else if (shape.type === "label") {
     ctx.fillStyle = shape.color;
-    ctx.font = `${14 / zoomLevel}px Arial`;
+    ctx.font = ${14 / zoomLevel}px Arial;
     ctx.fillText(shape.label, shape.x, shape.y);
 
   } else if (shape.type === "erase") {
@@ -176,7 +166,7 @@ function drawLineLabel(x1, y1, x2, y2, color) {
   const midX = (x1 + x2) / 2;
   const midY = (y1 + y2) / 2;
   ctx.fillStyle = color;
-  ctx.font = `${12 / zoomLevel}px Arial`;
+  ctx.font = ${12 / zoomLevel}px Arial;
   ctx.fillText(label, midX + 5, midY - 5);
 }
 
@@ -189,7 +179,7 @@ function drawRoomLabels(shape) {
   const labelRight = formatLength(height, scale, unitMode);
 
   ctx.fillStyle = shape.color || "#000";
-  ctx.font = `${12 / zoomLevel}px Arial`;
+  ctx.font = ${12 / zoomLevel}px Arial;
 
   ctx.fillText(labelTop, x + width / 2 - ctx.measureText(labelTop).width / 2, y - 5);
 
@@ -213,49 +203,127 @@ function formatLength(length, scale, unitMode) {
   if (unitMode === "feet-inches") {
     const feet = Math.floor(scaled);
     const inches = Math.round((scaled - feet) * 12);
-    return `${feet}'${inches}"`;
+    return ${feet}'${inches}";
   } else if (unitMode === "decimal-feet") {
-    return `${scaled.toFixed(2)} ft`;
+    return ${scaled.toFixed(2)} ft;
   } else if (unitMode === "metric") {
-    return `${(scaled * 0.3048).toFixed(2)} m`;
+    return ${(scaled * 0.3048).toFixed(2)} m;
   } else {
-    return `${scaled.toFixed(1)}`;
+    return ${scaled.toFixed(1)};
   }
 }
 
-// Erase function for curves
-function eraseShape(shape, x, y, width, height) {
-  if (shape.type === "curve") {
-    const isInside = isPointInside(x, y, width, height, shape.p1.x, shape.p1.y) ||
-                     isPointInside(x, y, width, height, shape.cp.x, shape.cp.y) ||
-                     isPointInside(x, y, width, height, shape.p2.x, shape.p2.y);
+canvas.addEventListener("mousedown", (e) => {
+  const pos = toCanvasCoords(e);
+  const snappedX = snap(pos.x);
+  const snappedY = snap(pos.y);
 
-    if (isInside) return true;
+  if (e.button === 2 || e.button === 1) {
+    isDraggingCanvas = true;
+    dragStart = { x: e.clientX, y: e.clientY };
+    return;
+  }
 
-    // Otherwise, check if curve intersects the eraser box by sampling points along the curve
-    for (let t = 0; t <= 1; t += 0.1) {
-      const point = getPointOnCurve(shape.p1, shape.cp, shape.p2, t);
-      if (isPointInside(x, y, width, height, point.x, point.y)) {
-        return true;
-      }
+  if (currentMode === "erase") {
+    isDrawing = true;
+    startX = snappedX;
+    startY = snappedY;
+    preview = { type: "erase", x: startX, y: startY, width: 0, height: 0 };
+    redraw();
+    return;
+  }
+
+  if (currentMode === "curve") {
+    if (curveClicks === 0) {
+      curveTemp.p1 = { x: snappedX, y: snappedY };
+      curveClicks = 1;
+    } else if (curveClicks === 1) {
+      curveTemp.cp = { x: snappedX, y: snappedY };
+      curveClicks = 2;
+    } else if (curveClicks === 2) {
+      curveTemp.p2 = { x: snappedX, y: snappedY };
+      shapes.push({
+        type: "curve",
+        p1: curveTemp.p1,
+        cp: curveTemp.cp,
+        p2: curveTemp.p2,
+        color: getColor(),
+        thickness: getThickness()
+      });
+      saveState();
+      curveClicks = 0;
+      curveTemp = {};
+      preview = null;
+      redraw();
+    }
+    return;
+  }
+
+  isDrawing = true;
+  startX = snappedX;
+  startY = snappedY;
+});
+
+canvas.addEventListener("mousemove", (e) => {
+  if (isDraggingCanvas && dragStart) {
+    offsetX += e.clientX - dragStart.x;
+    offsetY += e.clientY - dragStart.y;
+    dragStart = { x: e.clientX, y: e.clientY };
+    redraw();
+    return;
+  }
+
+  if (!isDrawing && currentMode !== "curve") return;
+
+  const pos = toCanvasCoords(e);
+  const endX = snap(pos.x);
+  const endY = snap(pos.y);
+  const color = getColor();
+  const thickness = getThickness();
+
+  if (currentMode === "erase" && isDrawing) {
+    const x = Math.min(startX, endX);
+    const y = Math.min(startY, endY);
+    const w = Math.abs(endX - startX);
+    const h = Math.abs(endY - startY);
+    preview = { type: "erase", x, y, width: w, height: h };
+
+  } else if (currentMode === "line") {
+    preview = { type: "line", x1: startX, y1: startY, x2: endX, y2: endY, color, thickness };
+
+  } else if (currentMode === "room") {
+    preview = {
+      type: "room",
+      x: Math.min(startX, endX),
+      y: Math.min(startY, endY),
+      width: Math.abs(endX - startX),
+      height: Math.abs(endY - startY),
+      color, thickness
+    };
+
+  } else if (currentMode === "curve") {
+    if (curveClicks === 1) {
+      preview = {
+        type: "curve",
+        p1: curveTemp.p1,
+        cp: { x: endX, y: endY },
+        p2: { x: endX, y: endY },
+        color, thickness
+      };
+    } else if (curveClicks === 2) {
+      preview = {
+        type: "curve",
+        p1: curveTemp.p1,
+        cp: curveTemp.cp,
+        p2: { x: endX, y: endY },
+        color, thickness
+      };
     }
   }
-  return false;
-}
 
-// Get a point on the quadratic curve at a given time t (0 to 1)
-function getPointOnCurve(p1, cp, p2, t) {
-  const x = (1 - t) * (1 - t) * p1.x + 2 * (1 - t) * t * cp.x + t * t * p2.x;
-  const y = (1 - t) * (1 - t) * p1.y + 2 * (1 - t) * t * cp.y + t * t * p2.y;
-  return { x, y };
-}
+  redraw();
+});
 
-// Helper function to check if a point is inside the eraser box
-function isPointInside(x, y, width, height, pointX, pointY) {
-  return pointX >= x && pointY >= y && pointX <= x + width && pointY <= y + height;
-}
-
-// Mouseup event listener
 canvas.addEventListener("mouseup", () => {
   if (isDraggingCanvas) {
     isDraggingCanvas = false;
@@ -266,7 +334,14 @@ canvas.addEventListener("mouseup", () => {
 
   if (currentMode === "erase") {
     const { x, y, width, height } = preview;
-    shapes = shapes.filter(s => !eraseShape(s, x, y, width, height));
+    shapes = shapes.filter(s => {
+      if (s.type === "curve") return true;
+      const sx = s.x ?? 0;
+      const sy = s.y ?? 0;
+      const sw = s.width ?? 0;
+      const sh = s.height ?? 0;
+      return !(sx >= x && sy >= y && sx <= x + width && sy <= y + height);
+    });
     saveState();
   } else if (currentMode !== "curve") {
     shapes.push(preview);
