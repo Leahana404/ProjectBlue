@@ -1,40 +1,25 @@
 const canvas = document.getElementById("blueprintCanvas");
 const ctx = canvas.getContext("2d");
+const devicePixelRatio = window.devicePixelRatio || 1;
 
-let shapes = [], preview = null;
-let history = [], future = [];
 let isDrawing = false;
 let startX, startY;
 let currentMode = "room";
-let curveClicks = 0, curveTemp = {};
-let isDraggingCanvas = false, dragStart = null;
-
-const baseGridSize = 20;
+let shapes = [];
+let history = [], future = [];
+let preview = null;
 let zoomLevel = 1;
 let offsetX = canvas.width / 2;
 let offsetY = canvas.height / 2;
+let curveClicks = 0;
+let curveTemp = {};
+let isDraggingCanvas = false;
+let dragStart = null;
+
+const baseGridSize = 20;
 const minZoom = 0.2;
 const maxZoom = 4;
 
-const DPR = window.devicePixelRatio || 1;
-
-// ----- INIT -----
-function resizeCanvas() {
-  const w = window.innerWidth;
-  const h = window.innerHeight - 40;
-  canvas.width = w * DPR;
-  canvas.height = h * DPR;
-  canvas.style.width = w + "px";
-  canvas.style.height = h + "px";
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.scale(DPR, DPR);
-  redraw();
-}
-
-window.addEventListener("resize", resizeCanvas);
-resizeCanvas();
-
-// ----- UTILITIES -----
 function getVal(id, fallback) {
   const el = document.getElementById(id);
   return el ? el.value : fallback;
@@ -48,6 +33,7 @@ function snap(val) {
   const spacing = baseGridSize / 2;
   return Math.round(val / spacing) * spacing;
 }
+
 function toCanvasCoords(e) {
   const rect = canvas.getBoundingClientRect();
   return {
@@ -56,7 +42,6 @@ function toCanvasCoords(e) {
   };
 }
 
-// ----- MODES -----
 function setMode(mode) {
   currentMode = mode;
   curveClicks = 0;
@@ -69,12 +54,14 @@ function saveState() {
   if (history.length > 100) history.shift();
   future = [];
 }
+
 function undo() {
   if (history.length === 0) return;
   future.push(JSON.stringify(shapes));
   shapes = JSON.parse(history.pop());
   redraw();
 }
+
 function redo() {
   if (future.length === 0) return;
   history.push(JSON.stringify(shapes));
@@ -82,27 +69,36 @@ function redo() {
   redraw();
 }
 
-// ----- DRAWING -----
+function resizeCanvas() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  canvas.width = width * devicePixelRatio;
+  canvas.height = height * devicePixelRatio;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+}
+
 function drawGrid() {
   const spacing = baseGridSize * zoomLevel;
-  const w = canvas.width / DPR;
-  const h = canvas.height / DPR;
+  const width = canvas.width;
+  const height = canvas.height;
 
   ctx.save();
-  ctx.clearRect(0, 0, w, h);
+  ctx.clearRect(0, 0, width, height);
   ctx.translate(offsetX % spacing, offsetY % spacing);
   ctx.beginPath();
   ctx.strokeStyle = '#e0e0e0';
   ctx.lineWidth = 1;
 
-  for (let x = -spacing; x <= w + spacing; x += spacing) {
+  for (let x = -spacing; x <= width + spacing; x += spacing) {
     ctx.moveTo(x, -spacing);
-    ctx.lineTo(x, h + spacing);
+    ctx.lineTo(x, height + spacing);
   }
 
-  for (let y = -spacing; y <= h + spacing; y += spacing) {
+  for (let y = -spacing; y <= height + spacing; y += spacing) {
     ctx.moveTo(-spacing, y);
-    ctx.lineTo(w + spacing, y);
+    ctx.lineTo(width + spacing, y);
   }
 
   ctx.stroke();
@@ -110,6 +106,7 @@ function drawGrid() {
 }
 
 function redraw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
   shapes.forEach(s => drawShape(s));
   if (preview) drawShape(preview, true);
@@ -128,27 +125,23 @@ function drawShape(shape, isPreview = false) {
     ctx.lineTo(shape.x2, shape.y2);
     ctx.stroke();
     drawLineLabel(shape.x1, shape.y1, shape.x2, shape.y2, shape.color);
-  }
 
-  else if (shape.type === "room") {
+  } else if (shape.type === "room") {
     ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
     drawRoomLabels(shape);
-  }
 
-  else if (shape.type === "curve") {
+  } else if (shape.type === "curve") {
     ctx.beginPath();
     ctx.moveTo(shape.p1.x, shape.p1.y);
     ctx.quadraticCurveTo(shape.cp.x, shape.cp.y, shape.p2.x, shape.p2.y);
     ctx.stroke();
-  }
 
-  else if (shape.type === "label") {
+  } else if (shape.type === "label") {
     ctx.fillStyle = shape.color;
     ctx.font = `${14 / zoomLevel}px Arial`;
     ctx.fillText(shape.label, shape.x, shape.y);
-  }
 
-  else if (shape.type === "erase") {
+  } else if (shape.type === "erase") {
     ctx.setLineDash([5, 3]);
     ctx.strokeStyle = "red";
     ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
@@ -173,10 +166,8 @@ function drawRoomLabels(shape) {
   const { x, y, width, height } = shape;
   const scale = getScale();
   const unitMode = getUnitMode();
-
   const labelTop = formatLength(width, scale, unitMode);
   const labelRight = formatLength(height, scale, unitMode);
-
   ctx.fillStyle = shape.color || "#000";
   ctx.font = `${12 / zoomLevel}px Arial`;
 
@@ -201,12 +192,10 @@ function formatLength(length, scale, unitMode) {
     return `${scaled.toFixed(2)} ft`;
   } else if (unitMode === "metric") {
     return `${(scaled * 0.3048).toFixed(2)} m`;
-  } else {
-    return `${scaled.toFixed(1)}`;
   }
+  return `${scaled.toFixed(1)}`;
 }
 
-// ----- EVENTS -----
 canvas.addEventListener("mousedown", (e) => {
   const pos = toCanvasCoords(e);
   const snappedX = snap(pos.x);
@@ -294,9 +283,21 @@ canvas.addEventListener("mousemove", (e) => {
     };
   } else if (currentMode === "curve") {
     if (curveClicks === 1) {
-      preview = { type: "curve", p1: curveTemp.p1, cp: { x: endX, y: endY }, p2: { x: endX, y: endY }, color, thickness };
+      preview = {
+        type: "curve",
+        p1: curveTemp.p1,
+        cp: { x: endX, y: endY },
+        p2: { x: endX, y: endY },
+        color, thickness
+      };
     } else if (curveClicks === 2) {
-      preview = { type: "curve", p1: curveTemp.p1, cp: curveTemp.cp, p2: { x: endX, y: endY }, color, thickness };
+      preview = {
+        type: "curve",
+        p1: curveTemp.p1,
+        cp: curveTemp.cp,
+        p2: { x: endX, y: endY },
+        color, thickness
+      };
     }
   }
 
@@ -314,13 +315,12 @@ canvas.addEventListener("mouseup", () => {
   if (currentMode === "erase") {
     const { x, y, width, height } = preview;
     shapes = shapes.filter(s => {
-      if (s.type === "curve") {
-        const inside = (p) => p.x >= x && p.x <= x + width && p.y >= y && p.y <= y + height;
-        return !(inside(s.p1) && inside(s.cp) && inside(s.p2));
-      } else {
-        const sx = s.x ?? 0, sy = s.y ?? 0, sw = s.width ?? 0, sh = s.height ?? 0;
-        return !(sx >= x && sx + sw <= x + width && sy >= y && sy + sh <= y + height);
-      }
+      const bounds = getShapeBounds(s);
+      return !bounds || !(
+        bounds.x >= x && bounds.y >= y &&
+        bounds.x + bounds.w <= x + width &&
+        bounds.y + bounds.h <= y + height
+      );
     });
     saveState();
   } else if (currentMode !== "curve") {
@@ -332,6 +332,27 @@ canvas.addEventListener("mouseup", () => {
   isDrawing = false;
   redraw();
 });
+
+function getShapeBounds(s) {
+  if (s.type === "line") {
+    const x = Math.min(s.x1, s.x2);
+    const y = Math.min(s.y1, s.y2);
+    const w = Math.abs(s.x2 - s.x1);
+    const h = Math.abs(s.y2 - s.y1);
+    return { x, y, w, h };
+  } else if (s.type === "room") {
+    return { x: s.x, y: s.y, w: s.width, h: s.height };
+  } else if (s.type === "curve") {
+    const minX = Math.min(s.p1.x, s.cp.x, s.p2.x);
+    const minY = Math.min(s.p1.y, s.cp.y, s.p2.y);
+    const maxX = Math.max(s.p1.x, s.cp.x, s.p2.x);
+    const maxY = Math.max(s.p1.y, s.cp.y, s.p2.y);
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  } else if (s.type === "label") {
+    return { x: s.x - 2, y: s.y - 10, w: 30, h: 15 };
+  }
+  return null;
+}
 
 canvas.addEventListener("dblclick", (e) => {
   const pos = toCanvasCoords(e);
@@ -354,32 +375,23 @@ canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
   const zoomFactor = 1.1;
   const mouse = toCanvasCoords(e);
+
   const delta = e.deltaY < 0 ? zoomFactor : 1 / zoomFactor;
   const newZoom = Math.min(maxZoom, Math.max(minZoom, zoomLevel * delta));
+
   const wx = (mouse.x * zoomLevel + offsetX);
   const wy = (mouse.y * zoomLevel + offsetY);
+
   zoomLevel = newZoom;
+
   offsetX = wx - mouse.x * zoomLevel;
   offsetY = wy - mouse.y * zoomLevel;
+
   redraw();
 });
 
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
-function downloadImage() {
-  const tempCanvas = document.createElement("canvas");
-  tempCanvas.width = canvas.width;
-  tempCanvas.height = canvas.height;
-  const tempCtx = tempCanvas.getContext("2d");
-  tempCtx.fillStyle = "#ffffff";
-  tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-  tempCtx.drawImage(canvas, 0, 0);
-  const link = document.createElement("a");
-  link.download = "blueprint.png";
-  link.href = tempCanvas.toDataURL("image/png");
-  link.click();
-}
-
-// Initialize
+resizeCanvas();
 saveState();
 redraw();
