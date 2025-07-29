@@ -8,15 +8,27 @@ let shapes = [];
 let history = [], future = [];
 let preview = null;
 let zoomLevel = 1;
-let offsetX = canvas.width / 2;
-let offsetY = canvas.height / 2;
-let isDraggingCanvas = false;
-let dragStart = null;
+let offsetX = 0, offsetY = 0;
 let curveClicks = 0;
 let curveTemp = {};
+let isDraggingCanvas = false;
+let dragStart = null;
+
 const baseGridSize = 20;
 const minZoom = 0.2;
 const maxZoom = 4;
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight - 70; // account for controls height
+  centerCanvas();
+  redraw();
+}
+
+function centerCanvas() {
+  offsetX = canvas.width / 2;
+  offsetY = canvas.height / 2;
+}
 
 function getVal(id, fallback) {
   const el = document.getElementById(id);
@@ -26,6 +38,7 @@ function getScale() { return parseFloat(getVal("scaleInput", "1")); }
 function getUnitMode() { return getVal("unitSelect", "feet-inches"); }
 function getColor() { return getVal("colorInput", "#000000"); }
 function getThickness() { return parseInt(getVal("thicknessInput", "2")); }
+function getRotation() { return parseFloat(getVal("rotationInput", "0")); }
 
 function snap(val) {
   const spacing = baseGridSize / 2;
@@ -71,11 +84,11 @@ function drawGrid() {
   const spacing = baseGridSize * zoomLevel;
   const width = canvas.width;
   const height = canvas.height;
+
   const startX = -offsetX % spacing;
   const startY = -offsetY % spacing;
 
   ctx.save();
-  ctx.clearRect(0, 0, width, height);
   ctx.translate(offsetX % spacing, offsetY % spacing);
   ctx.beginPath();
   ctx.strokeStyle = '#e0e0e0';
@@ -201,7 +214,14 @@ canvas.addEventListener("mousedown", (e) => {
       curveClicks = 2;
     } else if (curveClicks === 2) {
       curveTemp.p2 = { x: snappedX, y: snappedY };
-      shapes.push({ type: "curve", p1: curveTemp.p1, cp: curveTemp.cp, p2: curveTemp.p2, color: getColor(), thickness: getThickness() });
+      shapes.push({
+        type: "curve",
+        p1: curveTemp.p1,
+        cp: curveTemp.cp,
+        p2: curveTemp.p2,
+        color: getColor(),
+        thickness: getThickness()
+      });
       saveState();
       curveClicks = 0;
       curveTemp = {};
@@ -254,9 +274,21 @@ canvas.addEventListener("mousemove", (e) => {
     };
   } else if (currentMode === "curve") {
     if (curveClicks === 1) {
-      preview = { type: "curve", p1: curveTemp.p1, cp: { x: endX, y: endY }, p2: { x: endX, y: endY }, color, thickness };
+      preview = {
+        type: "curve",
+        p1: curveTemp.p1,
+        cp: { x: endX, y: endY },
+        p2: { x: endX, y: endY },
+        color, thickness
+      };
     } else if (curveClicks === 2) {
-      preview = { type: "curve", p1: curveTemp.p1, cp: curveTemp.cp, p2: { x: endX, y: endY }, color, thickness };
+      preview = {
+        type: "curve",
+        p1: curveTemp.p1,
+        cp: curveTemp.cp,
+        p2: { x: endX, y: endY },
+        color, thickness
+      };
     }
   }
 
@@ -268,6 +300,7 @@ canvas.addEventListener("mouseup", () => {
     isDraggingCanvas = false;
     return;
   }
+
   if (!isDrawing || !preview) return;
 
   if (currentMode === "erase") {
@@ -279,11 +312,12 @@ canvas.addEventListener("mouseup", () => {
       const sh = s.height ?? 0;
       return !(sx >= x && sy >= y && sx <= x + width && sy <= y + height);
     });
+    saveState();
   } else if (currentMode !== "curve") {
     shapes.push(preview);
+    saveState();
   }
 
-  saveState();
   preview = null;
   isDrawing = false;
   redraw();
@@ -320,7 +354,10 @@ canvas.addEventListener("wheel", (e) => {
   redraw();
 });
 
-canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+canvas.addEventListener("contextmenu", e => e.preventDefault());
 
+window.addEventListener("resize", resizeCanvas);
+
+// Initialize
+resizeCanvas();
 saveState();
-redraw();
