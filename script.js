@@ -1,6 +1,7 @@
 const canvas = document.getElementById("blueprintCanvas");
 const ctx = canvas.getContext("2d");
 
+// Device Pixel Ratio (for high-DPI displays)
 const devicePixelRatio = window.devicePixelRatio || 1;
 
 let isDrawing = false;
@@ -21,6 +22,7 @@ const baseGridSize = 20;
 const minZoom = 0.2;
 const maxZoom = 4;
 
+// Update the canvas size based on the window size and device pixel ratio
 function resizeCanvas() {
   const width = window.innerWidth;
   const height = window.innerHeight;
@@ -314,7 +316,6 @@ canvas.addEventListener("wheel", (e) => {
 
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
-// Initialize
 resizeCanvas();
 saveState();
 redraw();
