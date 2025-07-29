@@ -21,7 +21,6 @@ const baseGridSize = 20;
 const minZoom = 0.2;
 const maxZoom = 4;
 
-// Update the canvas size based on the window size and device pixel ratio
 function resizeCanvas() {
   const width = window.innerWidth;
   const height = window.innerHeight;
