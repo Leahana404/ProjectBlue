@@ -2,15 +2,17 @@ const canvas = document.getElementById("blueprintCanvas");
 const ctx = canvas.getContext("2d");
 
 let isDrawing = false;
+let isDraggingCanvas = false;
 let startX, startY;
 let currentMode = "room";
 let shapes = [];
 let history = [], future = [];
 let preview = null;
 let zoomLevel = 1;
-let offsetX = 500, offsetY = 500; // Centered start for 1000x1000 canvas
+let offsetX = 500, offsetY = 500;
 let curveClicks = 0;
 let curveTemp = {};
+let dragStart = null;
 
 const baseGridSize = 20;
 const minZoom = 0.2;
@@ -154,7 +156,6 @@ function drawLineLabel(x1, y1, x2, y2, color) {
 function formatDimensions(w, h, scale, unitMode) {
   const unitsW = w / baseGridSize;
   const unitsH = h / baseGridSize;
-
   const sw = unitsW * scale;
   const sh = unitsH * scale;
 
@@ -181,6 +182,23 @@ canvas.addEventListener("mousedown", (e) => {
   if (e.button === 2 || e.button === 1) {
     isDraggingCanvas = true;
     dragStart = { x: e.clientX, y: e.clientY };
+    return;
+  }
+
+  if (currentMode === "label") {
+    const text = prompt("Enter label text:");
+    if (text) {
+      shapes.push({
+        type: "label",
+        x: snappedX,
+        y: snappedY,
+        label: text,
+        color: getColor(),
+        thickness: getThickness()
+      });
+      saveState();
+      redraw();
+    }
     return;
   }
 
@@ -242,11 +260,13 @@ canvas.addEventListener("mousemove", (e) => {
   const thickness = getThickness();
 
   if (currentMode === "erase" && isDrawing) {
-    const x = Math.min(startX, endX);
-    const y = Math.min(startY, endY);
-    const w = Math.abs(endX - startX);
-    const h = Math.abs(endY - startY);
-    preview = { type: "erase", x, y, width: w, height: h };
+    preview = {
+      type: "erase",
+      x: Math.min(startX, endX),
+      y: Math.min(startY, endY),
+      width: Math.abs(endX - startX),
+      height: Math.abs(endY - startY)
+    };
   } else if (currentMode === "line") {
     preview = { type: "line", x1: startX, y1: startY, x2: endX, y2: endY, color, thickness };
   } else if (currentMode === "room") {
@@ -310,23 +330,6 @@ canvas.addEventListener("mouseup", () => {
   redraw();
 });
 
-canvas.addEventListener("dblclick", (e) => {
-  const pos = toCanvasCoords(e);
-  const text = prompt("Enter label text:");
-  if (text) {
-    shapes.push({
-      type: "label",
-      x: pos.x,
-      y: pos.y,
-      label: text,
-      color: getColor(),
-      thickness: 1
-    });
-    saveState();
-    redraw();
-  }
-});
-
 canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
   const zoomFactor = 1.1;
@@ -348,6 +351,6 @@ canvas.addEventListener("wheel", (e) => {
 
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
-// Initial state
+// Init
 saveState();
 redraw();
