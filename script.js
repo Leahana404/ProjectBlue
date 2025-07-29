@@ -12,7 +12,7 @@ let offsetX = 0, offsetY = 0;
 let curveClicks = 0;
 let curveTemp = {};
 
-const baseGridSize = 20; // 1 grid = 20px
+const baseGridSize = 20;
 
 function getVal(id, fallback) {
   const el = document.getElementById(id);
@@ -92,7 +92,6 @@ function drawGrid() {
 function redraw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
-
   shapes.forEach(s => drawShape(s));
   if (preview) drawShape(preview, true);
 }
@@ -151,8 +150,8 @@ function drawLineLabel(x1, y1, x2, y2, color) {
 }
 
 function formatDimensions(w, h, scale, unitMode) {
-  const unitsW = w / baseGridSize;
-  const unitsH = h / baseGridSize;
+  const unitsW = w / (baseGridSize * zoomLevel);
+  const unitsH = h / (baseGridSize * zoomLevel);
 
   const sw = unitsW * scale;
   const sh = unitsH * scale;
