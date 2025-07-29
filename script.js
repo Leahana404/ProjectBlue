@@ -8,7 +8,8 @@ let shapes = [];
 let history = [], future = [];
 let preview = null;
 let zoomLevel = 1;
-let offsetX = 0, offsetY = 0;
+let offsetX = window.innerWidth / 2;
+let offsetY = window.innerHeight / 2;
 let curveClicks = 0;
 let curveTemp = {};
 let isDraggingCanvas = false;
@@ -17,18 +18,6 @@ let dragStart = null;
 const baseGridSize = 20;
 const minZoom = 0.2;
 const maxZoom = 4;
-
-function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight - 70; // account for controls height
-  centerCanvas();
-  redraw();
-}
-
-function centerCanvas() {
-  offsetX = canvas.width / 2;
-  offsetY = canvas.height / 2;
-}
 
 function getVal(id, fallback) {
   const el = document.getElementById(id);
@@ -89,6 +78,7 @@ function drawGrid() {
   const startY = -offsetY % spacing;
 
   ctx.save();
+  ctx.clearRect(0, 0, width, height);
   ctx.translate(offsetX % spacing, offsetY % spacing);
   ctx.beginPath();
   ctx.strokeStyle = '#e0e0e0';
@@ -130,10 +120,27 @@ function drawShape(shape, isPreview = false) {
     drawLineLabel(shape.x1, shape.y1, shape.x2, shape.y2, shape.color);
   } else if (shape.type === "room") {
     ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
-    const label = formatDimensions(shape.width, shape.height, getScale(), getUnitMode());
+
+    const sw = (shape.width / baseGridSize) * getScale();
+    const sh = (shape.height / baseGridSize) * getScale();
+    const unit = getUnitMode();
+    const labelW = formatLength(shape.width, getScale(), unit);
+    const labelH = formatLength(shape.height, getScale(), unit);
+
     ctx.fillStyle = shape.color;
     ctx.font = `${12 / zoomLevel}px Arial`;
-    ctx.fillText(label, shape.x + 5, shape.y + 15);
+
+    // Width label - top center
+    const midX = shape.x + shape.width / 2;
+    ctx.fillText(labelW, midX - ctx.measureText(labelW).width / 2, shape.y - 5);
+
+    // Height label - right center, rotated
+    const midY = shape.y + shape.height / 2;
+    ctx.save();
+    ctx.translate(shape.x + shape.width + 5, midY);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(labelH, 0, 0);
+    ctx.restore();
   } else if (shape.type === "curve") {
     ctx.beginPath();
     ctx.moveTo(shape.p1.x, shape.p1.y);
@@ -156,7 +163,7 @@ function drawLineLabel(x1, y1, x2, y2, color) {
   const dx = x2 - x1;
   const dy = y2 - y1;
   const distance = Math.sqrt(dx * dx + dy * dy);
-  const label = formatDimensions(distance, 0, getScale(), getUnitMode());
+  const label = formatLength(distance, getScale(), getUnitMode());
   const midX = (x1 + x2) / 2;
   const midY = (y1 + y2) / 2;
   ctx.fillStyle = color;
@@ -164,24 +171,18 @@ function drawLineLabel(x1, y1, x2, y2, color) {
   ctx.fillText(label, midX + 5, midY - 5);
 }
 
-function formatDimensions(w, h, scale, unitMode) {
-  const unitsW = w / baseGridSize;
-  const unitsH = h / baseGridSize;
-  const sw = unitsW * scale;
-  const sh = unitsH * scale;
-
+function formatLength(length, scale, unitMode) {
+  const scaled = (length / baseGridSize) * scale;
   if (unitMode === "feet-inches") {
-    const fw = Math.floor(sw);
-    const iw = Math.round((sw - fw) * 12);
-    const fh = Math.floor(sh);
-    const ih = Math.round((sh - fh) * 12);
-    return `${fw}'${iw}" x ${fh}'${ih}"`;
+    const f = Math.floor(scaled);
+    const i = Math.round((scaled - f) * 12);
+    return `${f}'${i}"`;
   } else if (unitMode === "decimal-feet") {
-    return `${sw.toFixed(2)}ft x ${sh.toFixed(2)}ft`;
+    return `${scaled.toFixed(2)}ft`;
   } else if (unitMode === "metric") {
-    return `${(sw * 0.3048).toFixed(2)}m x ${(sh * 0.3048).toFixed(2)}m`;
+    return `${(scaled * 0.3048).toFixed(2)}m`;
   } else {
-    return `${sw.toFixed(1)} x ${sh.toFixed(1)}`;
+    return `${scaled.toFixed(1)}`;
   }
 }
 
@@ -254,13 +255,11 @@ canvas.addEventListener("mousemove", (e) => {
   const thickness = getThickness();
 
   if (currentMode === "erase" && isDrawing) {
-    preview = {
-      type: "erase",
-      x: Math.min(startX, endX),
-      y: Math.min(startY, endY),
-      width: Math.abs(endX - startX),
-      height: Math.abs(endY - startY)
-    };
+    const x = Math.min(startX, endX);
+    const y = Math.min(startY, endY);
+    const w = Math.abs(endX - startX);
+    const h = Math.abs(endY - startY);
+    preview = { type: "erase", x, y, width: w, height: h };
   } else if (currentMode === "line") {
     preview = { type: "line", x1: startX, y1: startY, x2: endX, y2: endY, color, thickness };
   } else if (currentMode === "room") {
@@ -306,6 +305,7 @@ canvas.addEventListener("mouseup", () => {
   if (currentMode === "erase") {
     const { x, y, width, height } = preview;
     shapes = shapes.filter(s => {
+      if (s.type === "curve") return true;
       const sx = s.x ?? 0;
       const sy = s.y ?? 0;
       const sw = s.width ?? 0;
@@ -346,18 +346,21 @@ canvas.addEventListener("wheel", (e) => {
   const mouse = toCanvasCoords(e);
   const delta = e.deltaY < 0 ? zoomFactor : 1 / zoomFactor;
   const newZoom = Math.min(maxZoom, Math.max(minZoom, zoomLevel * delta));
+
   const wx = (mouse.x * zoomLevel + offsetX);
   const wy = (mouse.y * zoomLevel + offsetY);
+
   zoomLevel = newZoom;
   offsetX = wx - mouse.x * zoomLevel;
   offsetY = wy - mouse.y * zoomLevel;
+
   redraw();
 });
 
-canvas.addEventListener("contextmenu", e => e.preventDefault());
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
-window.addEventListener("resize", resizeCanvas);
-
-// Initialize
-resizeCanvas();
+// Initialization
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 saveState();
+redraw();
