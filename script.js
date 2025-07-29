@@ -12,7 +12,7 @@ let offsetX = 0, offsetY = 0;
 let curveClicks = 0;
 let curveTemp = {};
 
-const baseGridSize = 20;
+const baseGridSize = 20; // 1 grid = 20px
 
 function getVal(id, fallback) {
   const el = document.getElementById(id);
@@ -151,14 +151,18 @@ function drawLineLabel(x1, y1, x2, y2, color) {
 }
 
 function formatDimensions(w, h, scale, unitMode) {
-  const sw = w * scale;
-  const sh = h * scale;
+  const unitsW = w / baseGridSize;
+  const unitsH = h / baseGridSize;
+
+  const sw = unitsW * scale;
+  const sh = unitsH * scale;
+
   if (unitMode === "feet-inches") {
     const fw = Math.floor(sw);
     const iw = Math.round((sw - fw) * 12);
     const fh = Math.floor(sh);
     const ih = Math.round((sh - fh) * 12);
-    return `${fw}'${iw}\" x ${fh}'${ih}\"`;
+    return `${fw}'${iw}" x ${fh}'${ih}"`;
   } else if (unitMode === "decimal-feet") {
     return `${sw.toFixed(2)}ft x ${sh.toFixed(2)}ft`;
   } else if (unitMode === "metric") {
