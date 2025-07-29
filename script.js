@@ -25,7 +25,7 @@ function getThickness() { return parseInt(getVal("thicknessInput", "2")); }
 function getRotation() { return parseFloat(getVal("rotationInput", "0")); }
 
 function snap(val) {
-  const spacing = baseGridSize;
+  const spacing = baseGridSize / 2; // Snap to half-grid steps
   return Math.round(val / spacing) * spacing;
 }
 
@@ -49,12 +49,18 @@ function saveState() {
   if (history.length > 100) history.shift();
   future = [];
 }
+
 function undo() {
-  if (history.length === 0) return;
+  if (history.length === 0) {
+    shapes = [];
+    redraw();
+    return;
+  }
   future.push(JSON.stringify(shapes));
   shapes = JSON.parse(history.pop());
   redraw();
 }
+
 function redo() {
   if (future.length === 0) return;
   history.push(JSON.stringify(shapes));
@@ -109,25 +115,21 @@ function drawShape(shape, isPreview = false) {
     ctx.lineTo(shape.x2, shape.y2);
     ctx.stroke();
     drawLineLabel(shape.x1, shape.y1, shape.x2, shape.y2, shape.color);
-
   } else if (shape.type === "room") {
     ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
     const label = formatDimensions(shape.width, shape.height, getScale(), getUnitMode());
     ctx.fillStyle = shape.color;
     ctx.font = `${12 / zoomLevel}px Arial`;
     ctx.fillText(label, shape.x + 5, shape.y + 15);
-
   } else if (shape.type === "curve") {
     ctx.beginPath();
     ctx.moveTo(shape.p1.x, shape.p1.y);
     ctx.quadraticCurveTo(shape.cp.x, shape.cp.y, shape.p2.x, shape.p2.y);
     ctx.stroke();
-
   } else if (shape.type === "label") {
     ctx.fillStyle = shape.color;
     ctx.font = `${14 / zoomLevel}px Arial`;
     ctx.fillText(shape.label, shape.x, shape.y);
-
   } else if (shape.type === "erase") {
     ctx.setLineDash([5, 3]);
     ctx.strokeStyle = "red";
@@ -304,5 +306,6 @@ canvas.addEventListener("dblclick", (e) => {
   }
 });
 
-// Initialize
+// ✅ Initialize with empty state so Undo works fully
 redraw();
+saveState();
