@@ -5,7 +5,7 @@ const devicePixelRatio = window.devicePixelRatio || 1;
 
 let isDrawing = false;
 let startX, startY;
-let currentMode = "room";
+let currentMode = "room"; // Start in room mode
 let shapes = [];
 let history = [], future = [];
 let preview = null;
@@ -21,6 +21,21 @@ const baseGridSize = 20;
 const minZoom = 0.2;
 const maxZoom = 4;
 
+// Update the canvas size based on the window size and device pixel ratio
+function resizeCanvas() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+
+  canvas.width = width * devicePixelRatio;
+  canvas.height = height * devicePixelRatio;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+}
+
+resizeCanvas();
+
+// Function to get values from inputs
 function getVal(id, fallback) {
   const el = document.getElementById(id);
   return el ? el.value : fallback;
@@ -44,6 +59,7 @@ function toCanvasCoords(e) {
   };
 }
 
+// Set drawing mode when buttons are clicked
 function setMode(mode) {
   currentMode = mode;
   curveClicks = 0;
@@ -51,12 +67,14 @@ function setMode(mode) {
   preview = null;
 }
 
+// Save the current state of shapes to allow undo/redo functionality
 function saveState() {
   history.push(JSON.stringify(shapes));
   if (history.length > 100) history.shift();
   future = [];
 }
 
+// Undo functionality
 function undo() {
   if (history.length === 0) return;
   future.push(JSON.stringify(shapes));
@@ -64,6 +82,7 @@ function undo() {
   redraw();
 }
 
+// Redo functionality
 function redo() {
   if (future.length === 0) return;
   history.push(JSON.stringify(shapes));
@@ -71,18 +90,7 @@ function redo() {
   redraw();
 }
 
-// Resize the canvas to fit window and adjust for device pixel ratio
-function resizeCanvas() {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-
-  canvas.width = width * devicePixelRatio;
-  canvas.height = height * devicePixelRatio;
-  canvas.style.width = `${width}px`;
-  canvas.style.height = `${height}px`;
-  ctx.scale(devicePixelRatio, devicePixelRatio);
-}
-
+// Draw the grid on the canvas
 function drawGrid() {
   const spacing = baseGridSize * zoomLevel;
   const width = canvas.width;
@@ -112,6 +120,7 @@ function drawGrid() {
   ctx.restore();
 }
 
+// Redraw all shapes on the canvas
 function redraw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
@@ -119,6 +128,7 @@ function redraw() {
   if (preview) drawShape(preview, true);
 }
 
+// Draw individual shapes
 function drawShape(shape, isPreview = false) {
   ctx.save();
   ctx.translate(offsetX, offsetY);
@@ -215,7 +225,6 @@ function formatLength(length, scale, unitMode) {
 // Erase function for curves
 function eraseShape(shape, x, y, width, height) {
   if (shape.type === "curve") {
-    // Check if any point of the curve is inside the eraser box
     const isInside = isPointInside(x, y, width, height, shape.p1.x, shape.p1.y) ||
                      isPointInside(x, y, width, height, shape.cp.x, shape.cp.y) ||
                      isPointInside(x, y, width, height, shape.p2.x, shape.p2.y);
