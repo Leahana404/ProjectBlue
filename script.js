@@ -12,7 +12,7 @@ let offsetX = 0, offsetY = 0;
 let curveClicks = 0;
 let curveTemp = {};
 
-const baseGridSize = 20; // base pixel size for 1 unit at scale = 1
+const baseGridSize = 20;
 
 function getVal(id, fallback) {
   const el = document.getElementById(id);
@@ -25,8 +25,8 @@ function getThickness() { return parseInt(getVal("thicknessInput", "2")); }
 function getRotation() { return parseFloat(getVal("rotationInput", "0")); }
 
 function snap(val) {
-  const gridSpacing = baseGridSize / getScale();
-  return Math.round(val / gridSpacing) * gridSpacing;
+  const spacing = baseGridSize;
+  return Math.round(val / spacing) * spacing;
 }
 
 function toCanvasCoords(e) {
@@ -63,8 +63,7 @@ function redo() {
 }
 
 function drawGrid() {
-  const scale = getScale();
-  const spacing = baseGridSize / scale * zoomLevel;
+  const spacing = baseGridSize * zoomLevel;
   const width = canvas.width;
   const height = canvas.height;
 
