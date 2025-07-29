@@ -69,25 +69,26 @@ function drawGrid() {
   const width = canvas.width;
   const height = canvas.height;
 
+  const startX = -offsetX % spacing;
+  const startY = -offsetY % spacing;
+
   ctx.save();
-  ctx.translate(offsetX, offsetY);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.beginPath();
   ctx.strokeStyle = '#e0e0e0';
   ctx.lineWidth = 1;
 
-  for (let x = 0; x < width; x += spacing) {
-    ctx.beginPath();
+  for (let x = startX; x < width; x += spacing) {
     ctx.moveTo(x, 0);
     ctx.lineTo(x, height);
-    ctx.stroke();
   }
 
-  for (let y = 0; y < height; y += spacing) {
-    ctx.beginPath();
+  for (let y = startY; y < height; y += spacing) {
     ctx.moveTo(0, y);
     ctx.lineTo(width, y);
-    ctx.stroke();
   }
 
+  ctx.stroke();
   ctx.restore();
 }
 
