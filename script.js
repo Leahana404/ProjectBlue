@@ -1,6 +1,9 @@
 const canvas = document.getElementById("blueprintCanvas");
 const ctx = canvas.getContext("2d");
 
+// Device Pixel Ratio (for high-DPI displays)
+const devicePixelRatio = window.devicePixelRatio || 1;
+
 let isDrawing = false;
 let startX, startY;
 let currentMode = "room";
@@ -67,6 +70,18 @@ function redo() {
   history.push(JSON.stringify(shapes));
   shapes = JSON.parse(future.pop());
   redraw();
+}
+
+// Resize the canvas to fit window and adjust for device pixel ratio
+function resizeCanvas() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+
+  canvas.width = width * devicePixelRatio;
+  canvas.height = height * devicePixelRatio;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
 }
 
 function drawGrid() {
@@ -376,5 +391,6 @@ canvas.addEventListener("wheel", (e) => {
 
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
+resizeCanvas();
 saveState();
 redraw();
