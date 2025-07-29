@@ -1,5 +1,18 @@
+const devicePixelRatio = window.devicePixelRatio || 1;
+
 const canvas = document.getElementById("blueprintCanvas");
 const ctx = canvas.getContext("2d");
+
+function adjustCanvasSize() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  
+  canvas.width = width * devicePixelRatio;
+  canvas.height = height * devicePixelRatio;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+}
 
 let isDrawing = false;
 let startX, startY;
@@ -23,6 +36,7 @@ function getVal(id, fallback) {
   const el = document.getElementById(id);
   return el ? el.value : fallback;
 }
+
 function getScale() { return parseFloat(getVal("scaleInput", "1")); }
 function getUnitMode() { return getVal("unitSelect", "feet-inches"); }
 function getColor() { return getVal("colorInput", "#000000"); }
@@ -165,10 +179,8 @@ function drawRoomLabels(shape) {
   ctx.fillStyle = shape.color || "#000";
   ctx.font = `${12 / zoomLevel}px Arial`;
 
-  // Top side (centered)
   ctx.fillText(labelTop, x + width / 2 - ctx.measureText(labelTop).width / 2, y - 5);
 
-  // Right side (rotated)
   const x1 = x + width;
   const y1 = y;
   const x2 = x + width;
@@ -198,8 +210,6 @@ function formatLength(length, scale, unitMode) {
     return `${scaled.toFixed(1)}`;
   }
 }
-
-// ======================= Mouse Events ===========================
 
 canvas.addEventListener("mousedown", (e) => {
   const pos = toCanvasCoords(e);
@@ -379,6 +389,6 @@ canvas.addEventListener("wheel", (e) => {
 
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
-// Initialize
+adjustCanvasSize();
 saveState();
 redraw();
