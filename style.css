@@ -1,94 +1,42 @@
+* {
+  box-sizing: border-box;
+}
+
 body {
   font-family: Arial, sans-serif;
-  background: #9fc3e9;
   margin: 0;
   padding: 0;
+  background: #9fc3e9;
   overflow: hidden;
-  color: #333;
 }
 
-h2 {
-  text-align: center;
-  margin-top: 20px;
-  color: #333;
-}
-
-/* Controls Panel */
 #controls {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  background: rgba(255, 255, 255, 0.9);
   padding: 10px;
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  z-index: 10;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-  box-sizing: border-box;
+  gap: 6px;
+  background: #ffffffcc;
+  z-index: 100;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 #controls > * {
   font-size: 14px;
-  padding: 5px;
-  background: #fff;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  padding: 4px;
+  height: 28px;
 }
 
-#controls button {
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
-
-#controls button:hover {
-  background-color: #f0f0f0;
-}
-
-#controls input[type="number"], #controls input[type="color"], #controls select {
-  max-width: 120px;
-}
-
-/* Canvas Styling */
 canvas {
-  display: block;
   position: absolute;
-  top: 70px; /* accounts for control panel height */
+  top: 60px; /* height of control bar */
   left: 0;
-  width: 100%;
-  height: calc(100vh - 70px); /* accounts for control panel height */
-  background: #ffffff;
+  width: 100vw;
+  height: calc(100vh - 60px);
+  display: block;
+  background-color: #9fc3e9;
   cursor: crosshair;
-  border: 1px solid #ccc;
-  box-sizing: border-box;
-  transition: height 0.3s ease;
-}
-
-/* Ensure canvas is always responsive */
-@media (max-width: 768px) {
-  #controls {
-    flex-direction: column;
-    align-items: center;
-    padding: 15px 10px;
-  }
-
-  #controls button, #controls input, #controls select {
-    width: 100%;
-    margin-bottom: 5px;
-  }
-
-  canvas {
-    height: calc(100vh - 120px); /* Adjust height for smaller screens */
-  }
-}
-
-@media (max-width: 480px) {
-  #controls {
-    padding: 10px;
-  }
-
-  canvas {
-    height: calc(100vh - 130px); /* Further adjust for very small screens */
-  }
 }
