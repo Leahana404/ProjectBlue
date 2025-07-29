@@ -2,17 +2,16 @@ const canvas = document.getElementById("blueprintCanvas");
 const ctx = canvas.getContext("2d");
 
 let isDrawing = false;
-let isDraggingCanvas = false;
 let startX, startY;
 let currentMode = "room";
 let shapes = [];
 let history = [], future = [];
 let preview = null;
 let zoomLevel = 1;
-let offsetX = window.innerWidth / 2;
-let offsetY = window.innerHeight / 2;
+let offsetX = 500, offsetY = 500;
 let curveClicks = 0;
 let curveTemp = {};
+let isDraggingCanvas = false;
 let dragStart = null;
 
 const baseGridSize = 20;
@@ -98,8 +97,7 @@ function drawGrid() {
 }
 
 function redraw() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
   shapes.forEach(s => drawShape(s));
   if (preview) drawShape(preview, true);
@@ -143,62 +141,50 @@ function drawLineLabel(x1, y1, x2, y2, color) {
   const dx = x2 - x1;
   const dy = y2 - y1;
   const distance = Math.sqrt(dx * dx + dy * dy);
-  const label = formatLength(distance, getScale(), getUnitMode());
+  const label = formatLength(distance);
   const midX = (x1 + x2) / 2;
   const midY = (y1 + y2) / 2;
-  ctx.save();
   ctx.fillStyle = color;
   ctx.font = `${12 / zoomLevel}px Arial`;
-  ctx.translate(midX, midY);
-  const angle = Math.atan2(dy, dx);
-  ctx.rotate(angle);
-  ctx.fillText(label, 5, -5);
-  ctx.restore();
+  ctx.fillText(label, midX + 5, midY - 5);
 }
 
 function drawRoomLabels(shape) {
-  const { x, y, width, height } = shape;
-  const labelTop = formatLength(width, getScale(), getUnitMode());
-  const labelRight = formatLength(height, getScale(), getUnitMode());
+  const scale = getScale();
+  const units = getUnitMode();
+  const wLabel = formatLength(shape.width);
+  const hLabel = formatLength(shape.height);
 
-  ctx.fillStyle = shape.color || "#000";
+  ctx.fillStyle = shape.color;
   ctx.font = `${12 / zoomLevel}px Arial`;
 
-  // Top center (same as before)
-  ctx.fillText(labelTop, x + width / 2 - ctx.measureText(labelTop).width / 2, y - 5);
+  // Horizontal label (bottom center)
+  ctx.fillText(wLabel, shape.x + shape.width / 2 - 20, shape.y + shape.height + 15);
 
-  // Right side label – positioned like a line label
-  const x1 = x + width;
-  const y1 = y;
-  const x2 = x + width;
-  const y2 = y + height;
-
-  const midX = (x1 + x2) / 2;
-  const midY = (y1 + y2) / 2;
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const angle = Math.atan2(dy, dx);
-
+  // Vertical label (left center)
   ctx.save();
-  ctx.translate(midX, midY);
-  ctx.rotate(angle);
-  ctx.fillText(labelRight, 5, -5);
+  ctx.translate(shape.x - 20, shape.y + shape.height / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText(hLabel, 0, 0);
   ctx.restore();
 }
 
-function formatLength(len, scale, unitMode) {
-  const raw = len / baseGridSize * scale;
+function formatLength(rawLength) {
+  const units = getUnitMode();
+  const scale = getScale();
+  const unitsLong = rawLength / baseGridSize * scale;
 
-  if (unitMode === "feet-inches") {
-    const feet = Math.floor(raw);
-    const inches = Math.round((raw - feet) * 12);
+  if (units === "feet-inches") {
+    const feet = Math.floor(unitsLong);
+    const inches = Math.round((unitsLong - feet) * 12);
     return `${feet}'${inches}"`;
-  } else if (unitMode === "decimal-feet") {
-    return `${raw.toFixed(2)}ft`;
-  } else if (unitMode === "metric") {
-    return `${(raw * 0.3048).toFixed(2)}m`;
+  } else if (units === "decimal-feet") {
+    return `${unitsLong.toFixed(2)}ft`;
+  } else if (units === "metric") {
+    return `${(unitsLong * 0.3048).toFixed(2)}m`;
+  } else {
+    return `${unitsLong.toFixed(1)}`;
   }
-  return `${raw.toFixed(1)}`;
 }
 
 canvas.addEventListener("mousedown", (e) => {
@@ -320,12 +306,28 @@ canvas.addEventListener("mouseup", () => {
   if (currentMode === "erase") {
     const { x, y, width, height } = preview;
     shapes = shapes.filter(s => {
-      if (s.type === "curve") return true;
-      const sx = s.x ?? 0;
-      const sy = s.y ?? 0;
-      const sw = s.width ?? 0;
-      const sh = s.height ?? 0;
-      return !(sx >= x && sy >= y && sx <= x + width && sy <= y + height);
+      if (s.type === "line") {
+        return !(
+          s.x1 >= x && s.x1 <= x + width &&
+          s.y1 >= y && s.y1 <= y + height &&
+          s.x2 >= x && s.x2 <= x + width &&
+          s.y2 >= y && s.y2 <= y + height
+        );
+      } else if (s.type === "room") {
+        return !(s.x >= x && s.y >= y &&
+                 s.x + s.width <= x + width &&
+                 s.y + s.height <= y + height);
+      } else if (s.type === "curve") {
+        return !(s.p1.x >= x && s.p1.x <= x + width &&
+                 s.p1.y >= y && s.p1.y <= y + height &&
+                 s.cp.x >= x && s.cp.x <= x + width &&
+                 s.cp.y >= y && s.cp.y <= y + height &&
+                 s.p2.x >= x && s.p2.x <= x + width &&
+                 s.p2.y >= y && s.p2.y <= y + height);
+      } else if (s.type === "label") {
+        return !(s.x >= x && s.x <= x + width && s.y >= y && s.y <= y + height);
+      }
+      return true;
     });
     saveState();
   } else if (currentMode !== "curve") {
@@ -359,18 +361,22 @@ canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
   const zoomFactor = 1.1;
   const mouse = toCanvasCoords(e);
+
   const delta = e.deltaY < 0 ? zoomFactor : 1 / zoomFactor;
   const newZoom = Math.min(maxZoom, Math.max(minZoom, zoomLevel * delta));
+
   const wx = (mouse.x * zoomLevel + offsetX);
   const wy = (mouse.y * zoomLevel + offsetY);
+
   zoomLevel = newZoom;
+
   offsetX = wx - mouse.x * zoomLevel;
   offsetY = wy - mouse.y * zoomLevel;
+
   redraw();
 });
 
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-window.addEventListener("resize", redraw);
 
 saveState();
 redraw();
