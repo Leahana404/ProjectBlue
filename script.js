@@ -15,6 +15,7 @@ let isDraggingCanvas = false;
 
 const gridSize = 20;
 
+// Input utilities
 function getVal(id, fallback) {
   const el = document.getElementById(id);
   return el ? el.value : fallback;
@@ -43,24 +44,113 @@ function setMode(mode) {
   preview = null;
 }
 
+// Undo/Redo
 function saveState() {
   history.push(JSON.stringify(shapes));
   if (history.length > 100) history.shift();
   future = [];
 }
-
 function undo() {
   if (history.length === 0) return;
   future.push(JSON.stringify(shapes));
   shapes = JSON.parse(history.pop());
   redraw();
 }
-
 function redo() {
   if (future.length === 0) return;
   history.push(JSON.stringify(shapes));
   shapes = JSON.parse(future.pop());
   redraw();
+}
+
+// Drawing utilities
+function drawGrid() {
+  const spacing = gridSize * zoomLevel;
+  const width = canvas.width;
+  const height = canvas.height;
+
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(zoomLevel, zoomLevel);
+  ctx.strokeStyle = '#e0e0e0';
+  ctx.lineWidth = 1 / zoomLevel;
+
+  for (let x = 0; x < width / zoomLevel; x += gridSize) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height / zoomLevel);
+    ctx.stroke();
+  }
+
+  for (let y = 0; y < height / zoomLevel; y += gridSize) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width / zoomLevel, y);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function redraw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawGrid();
+
+  shapes.forEach(s => drawShape(s));
+  if (preview) drawShape(preview, true);
+}
+
+function drawShape(shape, isPreview = false) {
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(zoomLevel, zoomLevel);
+  ctx.strokeStyle = shape.color || "#000";
+  ctx.lineWidth = (shape.thickness || 2) / zoomLevel;
+
+  if (shape.type === "line") {
+    ctx.beginPath();
+    ctx.moveTo(shape.x1, shape.y1);
+    ctx.lineTo(shape.x2, shape.y2);
+    ctx.stroke();
+    drawLineLabel(shape.x1, shape.y1, shape.x2, shape.y2, shape.color);
+
+  } else if (shape.type === "room") {
+    ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+    const label = formatDimensions(shape.width, shape.height, getScale(), getUnitMode());
+    ctx.fillStyle = shape.color;
+    ctx.font = `${12 / zoomLevel}px Arial`;
+    ctx.fillText(label, shape.x + 5, shape.y + 15);
+
+  } else if (shape.type === "curve") {
+    ctx.beginPath();
+    ctx.moveTo(shape.p1.x, shape.p1.y);
+    ctx.quadraticCurveTo(shape.cp.x, shape.cp.y, shape.p2.x, shape.p2.y);
+    ctx.stroke();
+
+  } else if (shape.type === "label") {
+    ctx.fillStyle = shape.color;
+    ctx.font = `${14 / zoomLevel}px Arial`;
+    ctx.fillText(shape.label, shape.x, shape.y);
+
+  } else if (shape.type === "erase") {
+    ctx.setLineDash([5, 3]);
+    ctx.strokeStyle = "red";
+    ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+  }
+
+  ctx.restore();
+}
+
+function drawLineLabel(x1, y1, x2, y2, color) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  const label = formatDimensions(distance, 0, getScale(), getUnitMode());
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2;
+  ctx.fillStyle = color;
+  ctx.font = `${12 / zoomLevel}px Arial`;
+  ctx.fillText(label, midX + 5, midY - 5);
 }
 
 function formatDimensions(w, h, scale, unitMode) {
@@ -81,46 +171,7 @@ function formatDimensions(w, h, scale, unitMode) {
   }
 }
 
-function drawLineLabel(x1, y1, x2, y2, color) {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-  const label = formatDimensions(distance, 0, getScale(), getUnitMode());
-  const midX = (x1 + x2) / 2;
-  const midY = (y1 + y2) / 2;
-  ctx.fillStyle = color;
-  ctx.font = `${12 / zoomLevel}px Arial`;
-  ctx.fillText(label, midX + 5, midY - 5);
-}
-
-function drawDoor(x, y, width, height, rotation, color) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate((rotation * Math.PI) / 180);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2 / zoomLevel;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(width, 0);
-  ctx.arc(0, 0, width, 0, Math.PI / 2);
-  ctx.stroke();
-  ctx.restore();
-  saveState();
-}
-
-function drawWindow(x, y, width, height, rotation, color) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate((rotation * Math.PI) / 180);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2 / zoomLevel;
-  ctx.beginPath();
-  ctx.arc(0, 0, width, Math.PI, 0);
-  ctx.stroke();
-  ctx.restore();
-  saveState();
-}
-
+// Event handlers
 canvas.addEventListener("mousedown", (e) => {
   const pos = toCanvasCoords(e);
   if (currentMode === "erase") {
@@ -129,36 +180,73 @@ canvas.addEventListener("mousedown", (e) => {
     startY = pos.y;
     preview = { type: "erase", x: startX, y: startY, width: 0, height: 0 };
     redraw();
+  } else {
+    isDrawing = true;
+    startX = snap(pos.x);
+    startY = snap(pos.y);
   }
 });
 
 canvas.addEventListener("mousemove", (e) => {
-  if (!isDrawing || currentMode !== "erase") return;
+  if (!isDrawing) return;
   const pos = toCanvasCoords(e);
-  const x = Math.min(startX, pos.x);
-  const y = Math.min(startY, pos.y);
-  const w = Math.abs(pos.x - startX);
-  const h = Math.abs(pos.y - startY);
-  preview = { type: "erase", x, y, width: w, height: h };
+  const endX = snap(pos.x);
+  const endY = snap(pos.y);
+  const color = getColor();
+  const thickness = getThickness();
+
+  if (currentMode === "erase") {
+    const x = Math.min(startX, endX);
+    const y = Math.min(startY, endY);
+    const w = Math.abs(endX - startX);
+    const h = Math.abs(endY - startY);
+    preview = { type: "erase", x, y, width: w, height: h };
+  } else if (currentMode === "line") {
+    preview = {
+      type: "line", x1: startX, y1: startY, x2: endX, y2: endY, color, thickness
+    };
+  } else if (currentMode === "room") {
+    preview = {
+      type: "room", x: Math.min(startX, endX), y: Math.min(startY, endY),
+      width: Math.abs(endX - startX), height: Math.abs(endY - startY), color, thickness
+    };
+  } else if (currentMode === "curve") {
+    const midX = (startX + endX) / 2;
+    const midY = (startY + endY) / 2 - 50;
+    preview = {
+      type: "curve",
+      p1: { x: startX, y: startY },
+      cp: { x: midX, y: midY },
+      p2: { x: endX, y: endY },
+      color,
+      thickness
+    };
+  }
+
   redraw();
 });
 
 canvas.addEventListener("mouseup", () => {
-  if (currentMode === "erase" && isDrawing && preview) {
+  if (!isDrawing || !preview) return;
+
+  if (currentMode === "erase") {
     const { x, y, width, height } = preview;
     shapes = shapes.filter(s => {
-      if (s.type === "curve") return true;
+      if (s.type === "curve") return true; // keep curves
       const sx = s.x ?? 0;
       const sy = s.y ?? 0;
       const sw = s.width ?? 0;
       const sh = s.height ?? 0;
       return !(sx >= x && sy >= y && sx <= x + width && sy <= y + height);
     });
+  } else {
+    shapes.push(preview);
     saveState();
-    preview = null;
-    isDrawing = false;
-    redraw();
   }
+
+  preview = null;
+  isDrawing = false;
+  redraw();
 });
 
 canvas.addEventListener("dblclick", (e) => {
@@ -177,3 +265,6 @@ canvas.addEventListener("dblclick", (e) => {
     redraw();
   }
 });
+
+// Start with grid drawn
+redraw();
