@@ -23,17 +23,17 @@ body {
 #controls > * {
   font-size: 14px;
   padding: 5px;
-  max-height: 32px;
 }
 
 canvas {
   display: block;
   position: absolute;
-  top: 70px; /* Height of the control bar */
+  top: 70px;
   left: 0;
-  width: 100vw;
-  height: calc(100vh - 70px);
   background: #9fc3e9;
   border: none;
   cursor: crosshair;
+  /* Use exact pixel dimensions */
+  width: 1600px;
+  height: 1000px;
 }
