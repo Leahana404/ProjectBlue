@@ -1,42 +1,27 @@
 const canvas = document.getElementById("blueprintCanvas");
 const ctx = canvas.getContext("2d");
 
-// Device Pixel Ratio (for high-DPI displays)
 const devicePixelRatio = window.devicePixelRatio || 1;
-
-let isDrawing = false;
-let startX, startY;
-let currentMode = "room"; // Start in room mode
-let shapes = [];
-let history = [], future = [];
-let preview = null;
-let zoomLevel = 1;
-let offsetX = canvas.width / 2;
-let offsetY = canvas.height / 2;
-let curveClicks = 0;
-let curveTemp = {};
-let isDraggingCanvas = false;
-let dragStart = null;
-
 const baseGridSize = 20;
 const minZoom = 0.2;
 const maxZoom = 4;
 
-// Update the canvas size based on the window size and device pixel ratio
-function resizeCanvas() {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
+let zoomLevel = 1;
+let offsetX = canvas.width / 2;
+let offsetY = canvas.height / 2;
 
-  canvas.width = width * devicePixelRatio;
-  canvas.height = height * devicePixelRatio;
-  canvas.style.width = `${width}px`;
-  canvas.style.height = `${height}px`;
-  ctx.scale(devicePixelRatio, devicePixelRatio);
-}
+let isDrawing = false;
+let startX, startY;
+let currentMode = "room";
+let preview = null;
+let isDraggingCanvas = false;
+let dragStart = null;
 
-resizeCanvas();
+let curveClicks = 0;
+let curveTemp = {};
+let shapes = [];
+let history = [], future = [];
 
-// Function to get values from inputs
 function getVal(id, fallback) {
   const el = document.getElementById(id);
   return el ? el.value : fallback;
@@ -60,22 +45,22 @@ function toCanvasCoords(e) {
   };
 }
 
-// Set drawing mode when buttons are clicked
-function setMode(mode) {
-  currentMode = mode;
-  curveClicks = 0;
-  curveTemp = {};
-  preview = null;
+function resizeCanvas() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+
+  canvas.width = width * devicePixelRatio;
+  canvas.height = height * devicePixelRatio;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
 }
 
-// Save the current state of shapes to allow undo/redo functionality
 function saveState() {
   history.push(JSON.stringify(shapes));
   if (history.length > 100) history.shift();
   future = [];
 }
 
-// Undo functionality
 function undo() {
   if (history.length === 0) return;
   future.push(JSON.stringify(shapes));
@@ -83,7 +68,6 @@ function undo() {
   redraw();
 }
 
-// Redo functionality
 function redo() {
   if (future.length === 0) return;
   history.push(JSON.stringify(shapes));
@@ -91,20 +75,24 @@ function redo() {
   redraw();
 }
 
-// Draw the grid on the canvas
+function setMode(mode) {
+  currentMode = mode;
+  curveClicks = 0;
+  curveTemp = {};
+  preview = null;
+}
+
 function drawGrid() {
   const spacing = baseGridSize * zoomLevel;
-  const width = canvas.width;
-  const height = canvas.height;
-
-  const startX = -offsetX % spacing;
-  const startY = -offsetY % spacing;
+  const width = canvas.width / devicePixelRatio;
+  const height = canvas.height / devicePixelRatio;
 
   ctx.save();
-  ctx.clearRect(0, 0, width, height);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.scale(devicePixelRatio, devicePixelRatio);
   ctx.translate(offsetX % spacing, offsetY % spacing);
   ctx.beginPath();
-  ctx.strokeStyle = '#e0e0e0';
+  ctx.strokeStyle = '#d0d0ff';
   ctx.lineWidth = 1;
 
   for (let x = -spacing; x <= width + spacing; x += spacing) {
@@ -121,17 +109,23 @@ function drawGrid() {
   ctx.restore();
 }
 
-// Redraw all shapes on the canvas
-function redraw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawGrid();
-  shapes.forEach(s => drawShape(s));
-  if (preview) drawShape(preview, true);
+function formatLength(length, scale, unitMode) {
+  const scaled = (length / baseGridSize) * scale;
+  if (unitMode === "feet-inches") {
+    const feet = Math.floor(scaled);
+    const inches = Math.round((scaled - feet) * 12);
+    return `${feet}'${inches}"`;
+  } else if (unitMode === "decimal-feet") {
+    return `${scaled.toFixed(2)} ft`;
+  } else if (unitMode === "metric") {
+    return `${(scaled * 0.3048).toFixed(2)} m`;
+  }
+  return `${scaled.toFixed(1)}`;
 }
 
-// Draw individual shapes
 function drawShape(shape, isPreview = false) {
   ctx.save();
+  ctx.scale(devicePixelRatio, devicePixelRatio);
   ctx.translate(offsetX, offsetY);
   ctx.scale(zoomLevel, zoomLevel);
   ctx.strokeStyle = shape.color || "#000";
@@ -142,7 +136,7 @@ function drawShape(shape, isPreview = false) {
     ctx.moveTo(shape.x1, shape.y1);
     ctx.lineTo(shape.x2, shape.y2);
     ctx.stroke();
-    drawLineLabel(shape.x1, shape.y1, shape.x2, shape.y2, shape.color);
+    drawLineLabel(shape);
 
   } else if (shape.type === "room") {
     ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
@@ -168,13 +162,15 @@ function drawShape(shape, isPreview = false) {
   ctx.restore();
 }
 
-function drawLineLabel(x1, y1, x2, y2, color) {
+function drawLineLabel(shape) {
+  const { x1, y1, x2, y2, color } = shape;
   const dx = x2 - x1;
   const dy = y2 - y1;
   const distance = Math.sqrt(dx * dx + dy * dy);
   const label = formatLength(distance, getScale(), getUnitMode());
   const midX = (x1 + x2) / 2;
   const midY = (y1 + y2) / 2;
+
   ctx.fillStyle = color;
   ctx.font = `${12 / zoomLevel}px Arial`;
   ctx.fillText(label, midX + 5, midY - 5);
@@ -193,12 +189,8 @@ function drawRoomLabels(shape) {
 
   ctx.fillText(labelTop, x + width / 2 - ctx.measureText(labelTop).width / 2, y - 5);
 
-  const x1 = x + width;
-  const y1 = y;
-  const x2 = x + width;
-  const y2 = y + height;
-  const midX = (x1 + x2) / 2;
-  const midY = (y1 + y2) / 2;
+  const midX = x + width;
+  const midY = y + height / 2;
 
   ctx.save();
   ctx.translate(midX, midY);
@@ -207,55 +199,101 @@ function drawRoomLabels(shape) {
   ctx.restore();
 }
 
-function formatLength(length, scale, unitMode) {
-  const scaled = (length / baseGridSize) * scale;
-
-  if (unitMode === "feet-inches") {
-    const feet = Math.floor(scaled);
-    const inches = Math.round((scaled - feet) * 12);
-    return `${feet}'${inches}"`;
-  } else if (unitMode === "decimal-feet") {
-    return `${scaled.toFixed(2)} ft`;
-  } else if (unitMode === "metric") {
-    return `${(scaled * 0.3048).toFixed(2)} m`;
-  } else {
-    return `${scaled.toFixed(1)}`;
-  }
+function redraw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawGrid();
+  shapes.forEach(s => drawShape(s));
+  if (preview) drawShape(preview, true);
 }
 
-// Erase function for curves
-function eraseShape(shape, x, y, width, height) {
-  if (shape.type === "curve") {
-    const isInside = isPointInside(x, y, width, height, shape.p1.x, shape.p1.y) ||
-                     isPointInside(x, y, width, height, shape.cp.x, shape.cp.y) ||
-                     isPointInside(x, y, width, height, shape.p2.x, shape.p2.y);
+// MOUSE EVENTS
+canvas.addEventListener("mousedown", (e) => {
+  const pos = toCanvasCoords(e);
+  const x = snap(pos.x);
+  const y = snap(pos.y);
 
-    if (isInside) return true;
+  if (e.button === 1 || e.button === 2) {
+    isDraggingCanvas = true;
+    dragStart = { x: e.clientX, y: e.clientY };
+    return;
+  }
 
-    // Otherwise, check if curve intersects the eraser box by sampling points along the curve
-    for (let t = 0; t <= 1; t += 0.1) {
-      const point = getPointOnCurve(shape.p1, shape.cp, shape.p2, t);
-      if (isPointInside(x, y, width, height, point.x, point.y)) {
-        return true;
-      }
+  if (currentMode === "erase") {
+    isDrawing = true;
+    startX = x;
+    startY = y;
+    preview = { type: "erase", x, y, width: 0, height: 0 };
+    redraw();
+    return;
+  }
+
+  if (currentMode === "curve") {
+    if (curveClicks === 0) {
+      curveTemp.p1 = { x, y };
+      curveClicks = 1;
+    } else if (curveClicks === 1) {
+      curveTemp.cp = { x, y };
+      curveClicks = 2;
+    } else if (curveClicks === 2) {
+      curveTemp.p2 = { x, y };
+      shapes.push({ type: "curve", ...curveTemp, color: getColor(), thickness: getThickness() });
+      saveState();
+      curveClicks = 0;
+      curveTemp = {};
+      preview = null;
+      redraw();
+    }
+    return;
+  }
+
+  isDrawing = true;
+  startX = x;
+  startY = y;
+});
+
+canvas.addEventListener("mousemove", (e) => {
+  if (isDraggingCanvas) {
+    offsetX += e.clientX - dragStart.x;
+    offsetY += e.clientY - dragStart.y;
+    dragStart = { x: e.clientX, y: e.clientY };
+    redraw();
+    return;
+  }
+
+  if (!isDrawing && currentMode !== "curve") return;
+
+  const pos = toCanvasCoords(e);
+  const x = snap(pos.x);
+  const y = snap(pos.y);
+  const color = getColor();
+  const thickness = getThickness();
+
+  if (currentMode === "erase" && isDrawing) {
+    const w = x - startX;
+    const h = y - startY;
+    preview = { type: "erase", x: startX, y: startY, width: w, height: h };
+  } else if (currentMode === "line") {
+    preview = { type: "line", x1: startX, y1: startY, x2: x, y2: y, color, thickness };
+  } else if (currentMode === "room") {
+    preview = {
+      type: "room",
+      x: Math.min(startX, x),
+      y: Math.min(startY, y),
+      width: Math.abs(x - startX),
+      height: Math.abs(y - startY),
+      color, thickness
+    };
+  } else if (currentMode === "curve") {
+    if (curveClicks === 1) {
+      preview = { type: "curve", p1: curveTemp.p1, cp: { x, y }, p2: { x, y }, color, thickness };
+    } else if (curveClicks === 2) {
+      preview = { type: "curve", ...curveTemp, p2: { x, y }, color, thickness };
     }
   }
-  return false;
-}
 
-// Get a point on the quadratic curve at a given time t (0 to 1)
-function getPointOnCurve(p1, cp, p2, t) {
-  const x = (1 - t) * (1 - t) * p1.x + 2 * (1 - t) * t * cp.x + t * t * p2.x;
-  const y = (1 - t) * (1 - t) * p1.y + 2 * (1 - t) * t * cp.y + t * t * p2.y;
-  return { x, y };
-}
+  redraw();
+});
 
-// Helper function to check if a point is inside the eraser box
-function isPointInside(x, y, width, height, pointX, pointY) {
-  return pointX >= x && pointY >= y && pointX <= x + width && pointY <= y + height;
-}
-
-// Mouseup event listener
 canvas.addEventListener("mouseup", () => {
   if (isDraggingCanvas) {
     isDraggingCanvas = false;
@@ -266,30 +304,30 @@ canvas.addEventListener("mouseup", () => {
 
   if (currentMode === "erase") {
     const { x, y, width, height } = preview;
-    shapes = shapes.filter(s => !eraseShape(s, x, y, width, height));
+    shapes = shapes.filter(s => {
+      if (s.type === "curve") return true; // adjust if you want to erase curves
+      const sx = s.x ?? 0;
+      const sy = s.y ?? 0;
+      const sw = s.width ?? 0;
+      const sh = s.height ?? 0;
+      return !(sx >= x && sy >= y && sx <= x + width && sy <= y + height);
+    });
     saveState();
   } else if (currentMode !== "curve") {
     shapes.push(preview);
     saveState();
   }
 
-  preview = null;
   isDrawing = false;
+  preview = null;
   redraw();
 });
 
 canvas.addEventListener("dblclick", (e) => {
   const pos = toCanvasCoords(e);
-  const text = prompt("Enter label text:");
+  const text = prompt("Label:");
   if (text) {
-    shapes.push({
-      type: "label",
-      x: pos.x,
-      y: pos.y,
-      label: text,
-      color: getColor(),
-      thickness: 1
-    });
+    shapes.push({ type: "label", x: pos.x, y: pos.y, label: text, color: getColor(), thickness: 1 });
     saveState();
     redraw();
   }
@@ -299,24 +337,20 @@ canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
   const zoomFactor = 1.1;
   const mouse = toCanvasCoords(e);
-
   const delta = e.deltaY < 0 ? zoomFactor : 1 / zoomFactor;
   const newZoom = Math.min(maxZoom, Math.max(minZoom, zoomLevel * delta));
-
   const wx = (mouse.x * zoomLevel + offsetX);
   const wy = (mouse.y * zoomLevel + offsetY);
-
   zoomLevel = newZoom;
-
   offsetX = wx - mouse.x * zoomLevel;
   offsetY = wy - mouse.y * zoomLevel;
-
   redraw();
 });
 
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
-// Initialize
-resizeCanvas();
-saveState();
-redraw();
+window.addEventListener("load", () => {
+  resizeCanvas();
+  saveState();
+  redraw();
+});
