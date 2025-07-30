@@ -9,9 +9,9 @@ let currentMode = "room";
 let shapes = [];
 let history = [], future = [];
 let preview = null;
-let zoomLevel = 1;
-let offsetX = canvas.width / 2;
-let offsetY = canvas.height / 2;
+let zoomLevel = 0.5; // Reset to default zoomed out
+let offsetX = window.innerWidth / 2;
+let offsetY = window.innerHeight / 2;
 let curveClicks = 0;
 let curveTemp = {};
 let isDraggingCanvas = false;
@@ -78,7 +78,7 @@ function resizeCanvas() {
   canvas.height = height * devicePixelRatio;
   canvas.style.width = `${width}px`;
   canvas.style.height = `${height}px`;
-  ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(devicePixelRatio, devicePixelRatio);
 }
 
@@ -206,17 +206,122 @@ function formatLength(length, scale, unitMode) {
   }
 }
 
+function onMouseDown(e) {
+  const { x, y } = toCanvasCoords(e);
+  isDrawing = true;
+  startX = snap(x);
+  startY = snap(y);
+  if (currentMode === "curve") {
+    curveClicks++;
+    if (curveClicks === 1) {
+      curveTemp.p1 = { x: startX, y: startY };
+    } else if (curveClicks === 2) {
+      curveTemp.cp = { x: startX, y: startY };
+    } else if (curveClicks === 3) {
+      curveTemp.p2 = { x: startX, y: startY };
+      shapes.push({
+        type: "curve",
+        p1: curveTemp.p1,
+        cp: curveTemp.cp,
+        p2: curveTemp.p2,
+        color: getColor(),
+        thickness: getThickness()
+      });
+      saveState();
+      curveClicks = 0;
+      curveTemp = {};
+      preview = null;
+      redraw();
+    }
+  }
+}
+
+function onMouseMove(e) {
+  if (!isDrawing) return;
+  const { x, y } = toCanvasCoords(e);
+  const endX = snap(x);
+  const endY = snap(y);
+
+  if (currentMode === "line") {
+    preview = {
+      type: "line",
+      x1: startX,
+      y1: startY,
+      x2: endX,
+      y2: endY,
+      color: getColor(),
+      thickness: getThickness()
+    };
+  } else if (currentMode === "room") {
+    preview = {
+      type: "room",
+      x: Math.min(startX, endX),
+      y: Math.min(startY, endY),
+      width: Math.abs(endX - startX),
+      height: Math.abs(endY - startY),
+      color: getColor(),
+      thickness: getThickness()
+    };
+  } else if (currentMode === "label") {
+    preview = {
+      type: "label",
+      x: endX,
+      y: endY,
+      label: prompt("Enter label text") || "",
+      color: getColor()
+    };
+    shapes.push(preview);
+    saveState();
+    preview = null;
+    isDrawing = false;
+  } else if (currentMode === "erase") {
+    preview = {
+      type: "erase",
+      x: Math.min(startX, endX),
+      y: Math.min(startY, endY),
+      width: Math.abs(endX - startX),
+      height: Math.abs(endY - startY)
+    };
+  }
+  redraw();
+}
+
+function onMouseUp(e) {
+  if (!isDrawing || !preview) return;
+  isDrawing = false;
+  if (currentMode === "line" || currentMode === "room") {
+    shapes.push(preview);
+    saveState();
+  } else if (currentMode === "erase") {
+    const area = preview;
+    shapes = shapes.filter(s => {
+      if (s.type === "line") {
+        return !(
+          s.x1 >= area.x && s.x1 <= area.x + area.width &&
+          s.y1 >= area.y && s.y1 <= area.y + area.height &&
+          s.x2 >= area.x && s.x2 <= area.x + area.width &&
+          s.y2 >= area.y && s.y2 <= area.y + area.height
+        );
+      } else if (s.type === "room" || s.type === "label" || s.type === "curve") {
+        return !(s.x >= area.x && s.x <= area.x + area.width &&
+                 s.y >= area.y && s.y <= area.y + area.height);
+      }
+      return true;
+    });
+    saveState();
+  }
+  preview = null;
+  redraw();
+}
+
 function downloadImage() {
   const tempCanvas = document.createElement("canvas");
   const tempCtx = tempCanvas.getContext("2d");
-
   tempCanvas.width = canvas.width;
   tempCanvas.height = canvas.height;
-
   tempCtx.fillStyle = "#ffffff";
   tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
   tempCtx.drawImage(canvas, 0, 0);
-
   const link = document.createElement("a");
   link.download = "blueprint.png";
   link.href = tempCanvas.toDataURL("image/png");
@@ -239,10 +344,8 @@ function updateLoadSelect() {
 function saveDrawing() {
   const name = document.getElementById("saveNameInput").value.trim();
   if (!name) return alert("Please enter a name.");
-
   const key = "drawing_" + name;
   localStorage.setItem(key, JSON.stringify(shapes));
-
   updateLoadSelect();
   alert(`Saved drawing "${name}" successfully.`);
 }
@@ -258,142 +361,11 @@ function loadDrawing() {
   redraw();
 }
 
-canvas.addEventListener("mousedown", (e) => {
-  const pos = toCanvasCoords(e);
-  const snappedX = snap(pos.x);
-  const snappedY = snap(pos.y);
-
-  if (e.button === 2 || e.button === 1) {
-    isDraggingCanvas = true;
-    dragStart = { x: e.clientX, y: e.clientY };
-    return;
-  }
-
-  if (currentMode === "erase") {
-    isDrawing = true;
-    startX = snappedX;
-    startY = snappedY;
-    preview = { type: "erase", x: startX, y: startY, width: 0, height: 0 };
-    redraw();
-    return;
-  }
-
-  if (currentMode === "curve") {
-    if (curveClicks === 0) {
-      curveTemp.p1 = { x: snappedX, y: snappedY };
-      curveClicks = 1;
-    } else if (curveClicks === 1) {
-      curveTemp.cp = { x: snappedX, y: snappedY };
-      curveClicks = 2;
-    } else if (curveClicks === 2) {
-      curveTemp.p2 = { x: snappedX, y: snappedY };
-      shapes.push({
-        type: "curve",
-        p1: curveTemp.p1,
-        cp: curveTemp.cp,
-        p2: curveTemp.p2,
-        color: getColor(),
-        thickness: getThickness()
-      });
-      saveState();
-      curveClicks = 0;
-      curveTemp = {};
-      preview = null;
-      redraw();
-    }
-    return;
-  }
-
-  isDrawing = true;
-  startX = snappedX;
-  startY = snappedY;
-});
-
-canvas.addEventListener("mousemove", (e) => {
-  if (isDraggingCanvas && dragStart) {
-    offsetX += e.clientX - dragStart.x;
-    offsetY += e.clientY - dragStart.y;
-    dragStart = { x: e.clientX, y: e.clientY };
-    redraw();
-    return;
-  }
-
-  if (!isDrawing && currentMode !== "curve") return;
-
-  const pos = toCanvasCoords(e);
-  const endX = snap(pos.x);
-  const endY = snap(pos.y);
-  const color = getColor();
-  const thickness = getThickness();
-
-  if (currentMode === "erase" && isDrawing) {
-    const x = Math.min(startX, endX);
-    const y = Math.min(startY, endY);
-    const w = Math.abs(endX - startX);
-    const h = Math.abs(endY - startY);
-    preview = { type: "erase", x, y, width: w, height: h };
-
-  } else if (currentMode === "line") {
-    preview = { type: "line", x1: startX, y1: startY, x2: endX, y2: endY, color, thickness };
-
-  } else if (currentMode === "room") {
-    preview = {
-      type: "room",
-      x: Math.min(startX, endX),
-      y: Math.min(startY, endY),
-      width: Math.abs(endX - startX),
-      height: Math.abs(endY - startY),
-      color, thickness
-    };
-
-  } else if (currentMode === "curve") {
-    if (curveClicks === 1) {
-      preview = {
-        type: "curve",
-        p1: curveTemp.p1,
-        cp: { x: endX, y: endY },
-        p2: { x: endX, y: endY },
-        color, thickness
-      };
-    } else if (curveClicks === 2) {
-      preview = {
-        type: "curve",
-        p1: curveTemp.p1,
-        cp: curveTemp.cp,
-        p2: { x: endX, y: endY },
-        color, thickness
-      };
-    }
-  }
-
-  redraw();
-});
-
-canvas.addEventListener("mouseup", () => {
-  if (isDraggingCanvas) {
-    isDraggingCanvas = false;
-    return;
-  }
-
-  if (!isDrawing || !preview) return;
-
-  if (currentMode === "erase") {
-    const { x, y, width, height } = preview;
-    shapes = shapes.filter(s => {
-      if (s.type === "curve") return true;
-      const sx = s.x ?? s.x1 ?? 0;
-      const sy = s.y ?? s.y1 ?? 0;
-      const sw = s.width ?? (s.x2 ? s.x2 - s.x1 : 0);
-      const sh = s.height ?? (s.y2 ? s.y2 - s.y1 : 0);
-      return !(sx >= x && sy >= y && sx + sw <= x + width && sy + sh <= y + height);
-    });
-    saveState();
-  } else if (currentMode !== "curve") {
-    shapes.push(preview);
-    saveState();
-  }
-
-  preview = null;
-  isDrawing = false;
-  redraw();
-});
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+canvas.addEventListener("mousedown", onMouseDown);
+canvas.addEventListener("mousemove", onMouseMove);
+canvas.addEventListener("mouseup", onMouseUp);
+resizeCanvas();
+saveState();
+redraw();
+updateLoadSelect();
