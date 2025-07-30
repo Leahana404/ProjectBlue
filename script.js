@@ -471,6 +471,24 @@ canvas.addEventListener("mouseup", (e) => {
     redraw();
   }
 });
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const zoomFactor = 1.1;
+  const mouse = toCanvasCoords(e);
+  const prevZoom = zoomLevel;
+
+  if (e.deltaY < 0 && zoomLevel < maxZoom) {
+    zoomLevel *= zoomFactor;
+  } else if (e.deltaY > 0 && zoomLevel > minZoom) {
+    zoomLevel /= zoomFactor;
+  }
+
+  const newMouse = toCanvasCoords(e);
+  offsetX += (mouse.x - newMouse.x) * zoomLevel;
+  offsetY += (mouse.y - newMouse.y) * zoomLevel;
+
+  redraw();
+}, { passive: false });
 
 resizeCanvas();
 saveState();
