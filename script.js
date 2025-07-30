@@ -78,7 +78,7 @@ function resizeCanvas() {
   canvas.height = height * devicePixelRatio;
   canvas.style.width = `${width}px`;
   canvas.style.height = `${height}px`;
-  ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(devicePixelRatio, devicePixelRatio);
 }
 
@@ -127,22 +127,18 @@ function drawShape(shape, isPreview = false) {
     ctx.lineTo(shape.x2, shape.y2);
     ctx.stroke();
     drawLineLabel(shape.x1, shape.y1, shape.x2, shape.y2, shape.color);
-
   } else if (shape.type === "room") {
     ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
     drawRoomLabels(shape);
-
   } else if (shape.type === "curve") {
     ctx.beginPath();
     ctx.moveTo(shape.p1.x, shape.p1.y);
     ctx.quadraticCurveTo(shape.cp.x, shape.cp.y, shape.p2.x, shape.p2.y);
     ctx.stroke();
-
   } else if (shape.type === "label") {
     ctx.fillStyle = shape.color;
     ctx.font = `${14 / zoomLevel}px Arial`;
     ctx.fillText(shape.label, shape.x, shape.y);
-
   } else if (shape.type === "erase") {
     ctx.setLineDash([5, 3]);
     ctx.strokeStyle = "red";
@@ -223,7 +219,6 @@ function downloadImage() {
   link.click();
 }
 
-// Save/Load with names
 function updateLoadSelect() {
   const loadSelect = document.getElementById("loadSelect");
   const keys = Object.keys(localStorage).filter(k => k.startsWith("drawing_"));
@@ -240,10 +235,8 @@ function updateLoadSelect() {
 function saveDrawing() {
   const name = document.getElementById("saveNameInput").value.trim();
   if (!name) return alert("Please enter a name.");
-
   const key = "drawing_" + name;
   localStorage.setItem(key, JSON.stringify(shapes));
-
   updateLoadSelect();
   alert(`Saved drawing "${name}" successfully.`);
 }
@@ -436,8 +429,3 @@ canvas.addEventListener("wheel", (e) => {
 });
 
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-
-resizeCanvas();
-saveState();
-redraw();
-updateLoadSelect();
