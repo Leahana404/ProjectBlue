@@ -1,13 +1,13 @@
 body {
-  font-family: Arial, sans-serif;
-  background: #9fc3e9;
   margin: 0;
   padding: 0;
+  font-family: Arial, sans-serif;
+  background: #9fc3e9;
   overflow: hidden;
 }
 
 header {
-  background: #ffffff;
+  background: #fff;
   padding: 12px;
   text-align: center;
   font-size: 20px;
@@ -17,59 +17,25 @@ header {
 
 #controls {
   position: fixed;
-  top: 50px;
+  top: 60px;
   left: 0;
   right: 0;
   background: #ffffffee;
+  z-index: 10;
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
   padding: 10px;
-  z-index: 10;
-  font-size: 14px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  gap: 10px;
   justify-content: center;
   align-items: center;
 }
 
-#controls > * {
-  padding: 6px 8px;
-  border-radius: 5px;
-  border: 1px solid #ccc;
-  background: #f9f9f9;
-  transition: background 0.2s ease;
-}
-
-#controls > *:hover {
-  background: #e0e0e0;
-}
-
 canvas {
   position: absolute;
-  top: 120px;
+  top: 130px; /* adjust depending on your control height */
   left: 0;
   width: 100vw;
-  height: calc(100vh - 120px);
+  height: calc(100vh - 130px); /* match top offset */
   display: block;
   background-color: #9fc3e9;
-  cursor: crosshair;
-}
-
-input[type="color"],
-input[type="number"],
-input[type="text"],
-select {
-  min-width: 90px;
-  font-size: 14px;
-}
-
-button {
-  cursor: pointer;
-}
-
-.group {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
 }
