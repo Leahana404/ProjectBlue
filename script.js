@@ -240,9 +240,12 @@ function updateLoadSelect() {
 function saveDrawing() {
   const name = document.getElementById("saveNameInput").value.trim();
   if (!name) return alert("Please enter a name.");
-  localStorage.setItem("drawing_" + name, JSON.stringify(shapes));
+
+  const key = "drawing_" + name;
+  localStorage.setItem(key, JSON.stringify(shapes));
+
   updateLoadSelect();
-  alert("Saved!");
+  alert(`Saved drawing "${name}" successfully.`);
 }
 
 function loadDrawing() {
@@ -251,6 +254,7 @@ function loadDrawing() {
   const data = localStorage.getItem("drawing_" + name);
   if (!data) return alert("Not found.");
   shapes = JSON.parse(data);
+  document.getElementById("saveNameInput").value = name;
   saveState();
   redraw();
 }
