@@ -206,127 +206,64 @@ function formatLength(length, scale, unitMode) {
   }
 }
 
-function onMouseDown(e) {
-  const { x, y } = toCanvasCoords(e);
-  isDrawing = true;
-  startX = snap(x);
-  startY = snap(y);
-  if (currentMode === "curve") {
-    curveClicks++;
-    if (curveClicks === 1) {
-      curveTemp.p1 = { x: startX, y: startY };
-    } else if (curveClicks === 2) {
-      curveTemp.cp = { x: startX, y: startY };
-    } else if (curveClicks === 3) {
-      curveTemp.p2 = { x: startX, y: startY };
-      shapes.push({
-        type: "curve",
-        p1: curveTemp.p1,
-        cp: curveTemp.cp,
-        p2: curveTemp.p2,
-        color: getColor(),
-        thickness: getThickness()
-      });
-      saveState();
-      curveClicks = 0;
-      curveTemp = {};
-      preview = null;
-      redraw();
-    }
-  }
-}
-
-function onMouseMove(e) {
-  if (!isDrawing) return;
-  const { x, y } = toCanvasCoords(e);
-  const endX = snap(x);
-  const endY = snap(y);
-
-  if (currentMode === "line") {
-    preview = {
-      type: "line",
-      x1: startX,
-      y1: startY,
-      x2: endX,
-      y2: endY,
-      color: getColor(),
-      thickness: getThickness()
-    };
-  } else if (currentMode === "room") {
-    preview = {
-      type: "room",
-      x: Math.min(startX, endX),
-      y: Math.min(startY, endY),
-      width: Math.abs(endX - startX),
-      height: Math.abs(endY - startY),
-      color: getColor(),
-      thickness: getThickness()
-    };
-  } else if (currentMode === "label") {
-    preview = {
-      type: "label",
-      x: endX,
-      y: endY,
-      label: prompt("Enter label text") || "",
-      color: getColor()
-    };
-    shapes.push(preview);
-    saveState();
-    preview = null;
-    isDrawing = false;
-  } else if (currentMode === "erase") {
-    preview = {
-      type: "erase",
-      x: Math.min(startX, endX),
-      y: Math.min(startY, endY),
-      width: Math.abs(endX - startX),
-      height: Math.abs(endY - startY)
-    };
-  }
+function loadDrawing() {
+  const name = document.getElementById("loadSelect").value;
+  if (!name) return alert("Select a drawing to load.");
+  const data = localStorage.getItem("drawing_" + name);
+  if (!data) return alert("Not found.");
+  shapes = JSON.parse(data);
+  document.getElementById("saveNameInput").value = name;
+  saveState();
   redraw();
 }
 
-function onMouseUp(e) {
-  if (!isDrawing || !preview) return;
-  isDrawing = false;
-  if (currentMode === "line" || currentMode === "room") {
-    shapes.push(preview);
-    saveState();
-  } else if (currentMode === "erase") {
-    const area = preview;
-    shapes = shapes.filter(s => {
-      if (s.type === "line") {
-        return !(
-          s.x1 >= area.x && s.x1 <= area.x + area.width &&
-          s.y1 >= area.y && s.y1 <= area.y + area.height &&
-          s.x2 >= area.x && s.x2 <= area.x + area.width &&
-          s.y2 >= area.y && s.y2 <= area.y + area.height
-        );
-      } else if (s.type === "room" || s.type === "label" || s.type === "curve") {
-        return !(s.x >= area.x && s.x <= area.x + area.width &&
-                 s.y >= area.y && s.y <= area.y + area.height);
-      }
-      return true;
-    });
-    saveState();
-  }
-  preview = null;
-  redraw();
-}
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+canvas.addEventListener("mousedown", onMouseDown);
+canvas.addEventListener("mousemove", onMouseMove);
+canvas.addEventListener("mouseup", onMouseUp);
 
-function downloadImage() {
-  const tempCanvas = document.createElement("canvas");
-  const tempCtx = tempCanvas.getContext("2d");
-  tempCanvas.width = canvas.width;
-  tempCanvas.height = canvas.height;
-  tempCtx.fillStyle = "#ffffff";
-  tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-  tempCtx.drawImage(canvas, 0, 0);
-  const link = document.createElement("a");
-  link.download = "blueprint.png";
-  link.href = tempCanvas.toDataURL("image/png");
-  link.click();
-}
+canvas.addEventListener("mousedown", (e) => {
+  if (e.button === 1) {
+    isDraggingCanvas = true;
+    dragStart = { x: e.clientX, y: e.clientY };
+    e.preventDefault();
+  }
+});
+
+canvas.addEventListener("mousemove", (e) => {
+  if (isDraggingCanvas) {
+    const dx = e.clientX - dragStart.x;
+    const dy = e.clientY - dragStart.y;
+    offsetX += dx;
+    offsetY += dy;
+    dragStart = { x: e.clientX, y: e.clientY };
+    redraw();
+  }
+});
+
+canvas.addEventListener("mouseup", (e) => {
+  if (e.button === 1) {
+    isDraggingCanvas = false;
+    e.preventDefault();
+  }
+});
+
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const zoomAmount = 0.1;
+  const mouse = toCanvasCoords(e);
+  const oldZoom = zoomLevel;
+
+  if (e.deltaY < 0) {
+    zoomLevel = Math.min(maxZoom, zoomLevel + zoomAmount);
+  } else {
+    zoomLevel = Math.max(minZoom, zoomLevel - zoomAmount);
+  }
+
+  offsetX -= (mouse.x * (zoomLevel - oldZoom));
+  offsetY -= (mouse.y * (zoomLevel - oldZoom));
+  redraw();
+});
 
 function updateLoadSelect() {
   const loadSelect = document.getElementById("loadSelect");
@@ -350,39 +287,19 @@ function saveDrawing() {
   alert(`Saved drawing "${name}" successfully.`);
 }
 
-function loadDrawing() {
-  const name = document.getElementById("loadSelect").value;
-  if (!name) return alert("Select a drawing to load.");
-  const data = localStorage.getItem("drawing_" + name);
-  if (!data) return alert("Not found.");
-  shapes = JSON.parse(data);
-  document.getElementById("saveNameInput").value = name;
-  saveState();
-  redraw();
+function downloadImage() {
+  const tempCanvas = document.createElement("canvas");
+  const tempCtx = tempCanvas.getContext("2d");
+  tempCanvas.width = canvas.width;
+  tempCanvas.height = canvas.height;
+  tempCtx.fillStyle = "#ffffff";
+  tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+  tempCtx.drawImage(canvas, 0, 0);
+  const link = document.createElement("a");
+  link.download = "blueprint.png";
+  link.href = tempCanvas.toDataURL("image/png");
+  link.click();
 }
-
-canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-canvas.addEventListener("mousedown", onMouseDown);
-canvas.addEventListener("mousemove", onMouseMove);
-canvas.addEventListener("mouseup", onMouseUp);
-canvas.addEventListener("wheel", (e) => {
-  e.preventDefault();
-  const zoomAmount = 0.1;
-  const mouse = toCanvasCoords(e);
-  const oldZoom = zoomLevel;
-
-  if (e.deltaY < 0) {
-    zoomLevel = Math.min(maxZoom, zoomLevel + zoomAmount);
-  } else {
-    zoomLevel = Math.max(minZoom, zoomLevel - zoomAmount);
-  }
-
-  // Adjust offset to zoom toward mouse position
-  offsetX -= (mouse.x * (zoomLevel - oldZoom));
-  offsetY -= (mouse.y * (zoomLevel - oldZoom));
-
-  redraw();
-});
 
 resizeCanvas();
 saveState();
