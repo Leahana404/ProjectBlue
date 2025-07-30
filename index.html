@@ -4,82 +4,15 @@
   <meta charset="UTF-8" />
   <title>Blueprint Builder</title>
   <link rel="stylesheet" href="style.css" />
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #9fc3e9;
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-    }
-
-    header {
-      background: #ffffff;
-      padding: 12px;
-      text-align: center;
-      font-size: 20px;
-      font-weight: bold;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-
-    #controls {
-      position: fixed;
-      top: 50px;
-      left: 0;
-      right: 0;
-      background: #ffffffee;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      padding: 10px;
-      z-index: 10;
-      font-size: 14px;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-      align-items: center;
-      justify-content: center;
-    }
-
-    #controls > * {
-      padding: 6px 8px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-    }
-
-    canvas {
-      position: absolute;
-      top: 120px;
-      left: 0;
-      width: 100vw;
-      height: calc(100vh - 120px);
-      display: block;
-      background-color: #9fc3e9;
-      cursor: crosshair;
-    }
-
-    input[type="color"],
-    input[type="number"],
-    select {
-      min-width: 100px;
-    }
-
-    input[type="text"] {
-      width: 120px;
-    }
-
-    .group {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-  </style>
 </head>
 <body>
-  <header>Blueprint Drawing Tool</header>
+  <header>
+    <h2>Blueprint Drawing Tool</h2>
+  </header>
 
-  <div id="controls">
-    <!-- Tools -->
-    <div class="group">
+  <section id="controls">
+    <!-- Tool Buttons -->
+    <div class="tool-group">
       <button onclick="setMode('room')">Room</button>
       <button onclick="setMode('line')">Line</button>
       <button onclick="setMode('curve')">Curve</button>
@@ -87,36 +20,13 @@
       <button onclick="setMode('erase')">Eraser</button>
     </div>
 
-    <!-- Undo / Redo -->
-    <div class="group">
-      <button onclick="undo()">Undo</button>
-      <button onclick="redo()">Redo</button>
-      <button onclick="downloadImage()">Download PNG</button>
-    </div>
-
-    <!-- Save / Load -->
-    <div class="group">
-      <input id="saveNameInput" type="text" placeholder="Save Name" />
-      <button onclick="saveDrawing()">💾 Save</button>
-      <select id="loadSelect"></select>
-      <button onclick="loadDrawing()">📂 Load</button>
-    </div>
-
-    <!-- Options -->
-    <div class="group">
-      <label>Color:
-        <input id="colorInput" type="color" value="#000000" />
-      </label>
-
-      <label>Thickness:
-        <input id="thicknessInput" type="number" min="1" max="10" value="2" />
-      </label>
-
-      <label>Scale:
-        <input id="scaleInput" type="number" min="0.1" step="0.1" value="1" />
-      </label>
-
-      <label>Units:
+    <!-- Drawing Settings -->
+    <div class="setting-group">
+      <label>Color: <input id="colorInput" type="color" value="#000000" /></label>
+      <label>Thickness: <input id="thicknessInput" type="number" min="1" max="10" value="2" /></label>
+      <label>Scale: <input id="scaleInput" type="number" min="0.1" step="0.1" value="1" /></label>
+      <label>
+        Units:
         <select id="unitSelect">
           <option value="feet-inches">ft/in</option>
           <option value="decimal-feet">decimal ft</option>
@@ -124,9 +34,25 @@
         </select>
       </label>
     </div>
-  </div>
+
+    <!-- Action Buttons -->
+    <div class="action-group">
+      <button onclick="undo()">Undo</button>
+      <button onclick="redo()">Redo</button>
+      <button onclick="downloadImage()">Download PNG</button>
+    </div>
+
+    <!-- Save/Load -->
+    <div class="save-load-group">
+      <input id="saveNameInput" placeholder="Save Name" />
+      <button onclick="saveDrawing()">Save</button>
+      <select id="loadSelect"></select>
+      <button onclick="loadDrawing()">Load</button>
+    </div>
+  </section>
 
   <canvas id="blueprintCanvas"></canvas>
+
   <script src="script.js"></script>
 </body>
 </html>
