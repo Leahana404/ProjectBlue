@@ -16,7 +16,10 @@ let curveClicks = 0;
 let curveTemp = {};
 let isDraggingCanvas = false;
 let dragStart = null;
+
 let selectedShape = null;
+let isDraggingShape = false;
+let dragOffset = { x: 0, y: 0 };
 
 const baseGridSize = 20;
 const minZoom = 0.2;
@@ -216,6 +219,29 @@ function formatLength(length, scale, unitMode) {
     return `${scaled.toFixed(1)}`;
   }
 }
+
+function shapeContains(shape, x, y) {
+  if (shape.type === "room") {
+    return x >= shape.x && x <= shape.x + shape.width &&
+           y >= shape.y && y <= shape.y + shape.height;
+  } else if (shape.type === "line") {
+    const buffer = 10;
+    const dist = pointToSegmentDistance(x, y, shape.x1, shape.y1, shape.x2, shape.y2);
+    return dist < buffer;
+  }
+  return false;
+}
+
+function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  const projX = x1 + t * dx;
+  const projY = y1 + t * dy;
+  return Math.hypot(px - projX, py - projY);
+}
 function loadDrawing() {
   const name = document.getElementById("loadSelect").value;
   if (!name) return alert("Select a drawing to load.");
@@ -263,51 +289,40 @@ function downloadImage() {
   link.click();
 }
 
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
 canvas.addEventListener("mousedown", (e) => {
   if (e.button === 1) {
     isDraggingCanvas = true;
     dragStart = { x: e.clientX, y: e.clientY };
     e.preventDefault();
-  }
-});
-canvas.addEventListener("mousemove", (e) => {
-  if (isDraggingCanvas) {
-    const dx = e.clientX - dragStart.x;
-    const dy = e.clientY - dragStart.y;
-    offsetX += dx;
-    offsetY += dy;
-    dragStart = { x: e.clientX, y: e.clientY };
-    redraw();
-  }
-});
-canvas.addEventListener("mouseup", (e) => {
-  if (e.button === 1) {
-    isDraggingCanvas = false;
-    e.preventDefault();
-  }
-});
-canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-
-canvas.addEventListener("wheel", (e) => {
-  e.preventDefault();
-  const zoomAmount = 0.1;
-  const mouse = toCanvasCoords(e);
-  const oldZoom = zoomLevel;
-
-  if (e.deltaY < 0) {
-    zoomLevel = Math.min(maxZoom, zoomLevel + zoomAmount);
-  } else {
-    zoomLevel = Math.max(minZoom, zoomLevel - zoomAmount);
+    return;
   }
 
-  offsetX -= (mouse.x * (zoomLevel - oldZoom));
-  offsetY -= (mouse.y * (zoomLevel - oldZoom));
-  redraw();
-});
-
-canvas.addEventListener("mousedown", (e) => {
   const { x, y } = toCanvasCoords(e);
-  if (e.button !== 0 || currentMode === "select") return;
+
+  if (currentMode === "select") {
+    selectedShape = null;
+    for (let i = shapes.length - 1; i >= 0; i--) {
+      const shape = shapes[i];
+      if (shapeContains(shape, x, y)) {
+        selectedShape = shape;
+        if (shape.type === "room") {
+          dragOffset.x = x - shape.x;
+          dragOffset.y = y - shape.y;
+        } else if (shape.type === "line") {
+          dragOffset.x = x - shape.x1;
+          dragOffset.y = y - shape.y1;
+        }
+        isDraggingShape = true;
+        break;
+      }
+    }
+    redraw();
+    return;
+  }
+
+  if (e.button !== 0) return;
 
   isDrawing = true;
   startX = snap(x);
@@ -338,10 +353,39 @@ canvas.addEventListener("mousedown", (e) => {
     }
   }
 });
-
 canvas.addEventListener("mousemove", (e) => {
-  if (!isDrawing) return;
+  if (isDraggingCanvas) {
+    const dx = e.clientX - dragStart.x;
+    const dy = e.clientY - dragStart.y;
+    offsetX += dx;
+    offsetY += dy;
+    dragStart = { x: e.clientX, y: e.clientY };
+    redraw();
+    return;
+  }
+
   const { x, y } = toCanvasCoords(e);
+
+  if (isDraggingShape && selectedShape && currentMode === "select") {
+    if (selectedShape.type === "room") {
+      selectedShape.x = x - dragOffset.x;
+      selectedShape.y = y - dragOffset.y;
+    } else if (selectedShape.type === "line") {
+      const dx = x - dragOffset.x - selectedShape.x1;
+      const dy = y - dragOffset.y - selectedShape.y1;
+      selectedShape.x1 += dx;
+      selectedShape.y1 += dy;
+      selectedShape.x2 += dx;
+      selectedShape.y2 += dy;
+      dragOffset.x = x - selectedShape.x1;
+      dragOffset.y = y - selectedShape.y1;
+    }
+    redraw();
+    return;
+  }
+
+  if (!isDrawing) return;
+
   const snappedX = snap(x), snappedY = snap(y);
 
   if (currentMode === "room") {
@@ -387,6 +431,18 @@ canvas.addEventListener("mousemove", (e) => {
 });
 
 canvas.addEventListener("mouseup", (e) => {
+  if (e.button === 1) {
+    isDraggingCanvas = false;
+    e.preventDefault();
+    return;
+  }
+
+  if (isDraggingShape) {
+    isDraggingShape = false;
+    saveState();
+    return;
+  }
+
   if (!isDrawing) return;
   isDrawing = false;
 
@@ -395,25 +451,15 @@ canvas.addEventListener("mouseup", (e) => {
       shapes = shapes.filter(s => {
         const px = preview.x, py = preview.y, pw = preview.width, ph = preview.height;
         if (s.type === "room") {
-          return !(
-            s.x > px && s.x < px + pw &&
-            s.y > py && s.y < py + ph
-          );
+          return !(s.x > px && s.x < px + pw && s.y > py && s.y < py + ph);
         } else if (s.type === "line") {
-          return !(
-            s.x1 > px && s.x1 < px + pw &&
-            s.y1 > py && s.y1 < py + ph &&
-            s.x2 > px && s.x2 < px + pw &&
-            s.y2 > py && s.y2 < py + ph
-          );
+          return !(s.x1 > px && s.x1 < px + pw && s.y1 > py && s.y1 < py + ph &&
+                   s.x2 > px && s.x2 < px + pw && s.y2 > py && s.y2 < py + ph);
         } else if (s.type === "curve") {
-          return !(s.p1.x > px && s.p1.x < px + pw &&
-                   s.p1.y > py && s.p1.y < py + ph &&
-                   s.p2.x > px && s.p2.x < px + pw &&
-                   s.p2.y > py && s.p2.y < py + ph);
+          return !(s.p1.x > px && s.p1.x < px + pw && s.p1.y > py && s.p1.y < py + ph &&
+                   s.p2.x > px && s.p2.x < px + pw && s.p2.y > py && s.p2.y < py + ph);
         } else if (s.type === "label") {
-          return !(s.x > px && s.x < px + pw &&
-                   s.y > py && s.y < py + ph);
+          return !(s.x > px && s.x < px + pw && s.y > py && s.y < py + ph);
         }
         return true;
       });
