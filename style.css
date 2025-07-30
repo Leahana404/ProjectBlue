@@ -53,12 +53,12 @@ button:hover {
 }
 
 canvas {
-  display: block;
   position: absolute;
-  top: 110px; /* Adjust based on toolbar height */
+  top: 130px;
   left: 0;
   width: 100%;
-  height: calc(100% - 110px);
+  height: calc(100% - 130px);
   background-color: transparent;
   cursor: crosshair;
+  z-index: 0;
 }
