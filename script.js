@@ -1,5 +1,6 @@
 const canvas = document.getElementById("blueprintCanvas");
 const ctx = canvas.getContext("2d");
+
 const devicePixelRatio = window.devicePixelRatio || 1;
 
 let isDrawing = false;
@@ -83,6 +84,8 @@ function drawGrid() {
   const spacing = baseGridSize * zoomLevel;
   const width = canvas.width;
   const height = canvas.height;
+  const startX = -offsetX % spacing;
+  const startY = -offsetY % spacing;
 
   ctx.save();
   ctx.clearRect(0, 0, width, height);
@@ -95,7 +98,6 @@ function drawGrid() {
     ctx.moveTo(x, -spacing);
     ctx.lineTo(x, height + spacing);
   }
-
   for (let y = -spacing; y <= height + spacing; y += spacing) {
     ctx.moveTo(-spacing, y);
     ctx.lineTo(width + spacing, y);
@@ -166,19 +168,26 @@ function drawRoomLabels(shape) {
   const { x, y, width, height } = shape;
   const scale = getScale();
   const unitMode = getUnitMode();
+
   const labelTop = formatLength(width, scale, unitMode);
   const labelRight = formatLength(height, scale, unitMode);
+
   ctx.fillStyle = shape.color || "#000";
   ctx.font = `${12 / zoomLevel}px Arial`;
 
   ctx.fillText(labelTop, x + width / 2 - ctx.measureText(labelTop).width / 2, y - 5);
 
-  const midX = x + width + 5;
-  const midY = y + height / 2;
+  const x1 = x + width;
+  const y1 = y;
+  const x2 = x + width;
+  const y2 = y + height;
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2;
+
   ctx.save();
   ctx.translate(midX, midY);
   ctx.rotate(Math.PI / 2);
-  ctx.fillText(labelRight, 0, 0);
+  ctx.fillText(labelRight, 5, -5);
   ctx.restore();
 }
 
@@ -192,10 +201,12 @@ function formatLength(length, scale, unitMode) {
     return `${scaled.toFixed(2)} ft`;
   } else if (unitMode === "metric") {
     return `${(scaled * 0.3048).toFixed(2)} m`;
+  } else {
+    return `${scaled.toFixed(1)}`;
   }
-  return `${scaled.toFixed(1)}`;
 }
 
+// --- Mouse Events ---
 canvas.addEventListener("mousedown", (e) => {
   const pos = toCanvasCoords(e);
   const snappedX = snap(pos.x);
@@ -270,8 +281,10 @@ canvas.addEventListener("mousemove", (e) => {
     const w = Math.abs(endX - startX);
     const h = Math.abs(endY - startY);
     preview = { type: "erase", x, y, width: w, height: h };
+
   } else if (currentMode === "line") {
     preview = { type: "line", x1: startX, y1: startY, x2: endX, y2: endY, color, thickness };
+
   } else if (currentMode === "room") {
     preview = {
       type: "room",
@@ -281,6 +294,7 @@ canvas.addEventListener("mousemove", (e) => {
       height: Math.abs(endY - startY),
       color, thickness
     };
+
   } else if (currentMode === "curve") {
     if (curveClicks === 1) {
       preview = {
@@ -315,12 +329,12 @@ canvas.addEventListener("mouseup", () => {
   if (currentMode === "erase") {
     const { x, y, width, height } = preview;
     shapes = shapes.filter(s => {
-      const bounds = getShapeBounds(s);
-      return !bounds || !(
-        bounds.x >= x && bounds.y >= y &&
-        bounds.x + bounds.w <= x + width &&
-        bounds.y + bounds.h <= y + height
-      );
+      if (s.type === "curve") return true; // can expand later
+      const sx = s.x ?? 0;
+      const sy = s.y ?? 0;
+      const sw = s.width ?? 0;
+      const sh = s.height ?? 0;
+      return !(sx >= x && sy >= y && sx + sw <= x + width && sy + sh <= y + height);
     });
     saveState();
   } else if (currentMode !== "curve") {
@@ -332,27 +346,6 @@ canvas.addEventListener("mouseup", () => {
   isDrawing = false;
   redraw();
 });
-
-function getShapeBounds(s) {
-  if (s.type === "line") {
-    const x = Math.min(s.x1, s.x2);
-    const y = Math.min(s.y1, s.y2);
-    const w = Math.abs(s.x2 - s.x1);
-    const h = Math.abs(s.y2 - s.y1);
-    return { x, y, w, h };
-  } else if (s.type === "room") {
-    return { x: s.x, y: s.y, w: s.width, h: s.height };
-  } else if (s.type === "curve") {
-    const minX = Math.min(s.p1.x, s.cp.x, s.p2.x);
-    const minY = Math.min(s.p1.y, s.cp.y, s.p2.y);
-    const maxX = Math.max(s.p1.x, s.cp.x, s.p2.x);
-    const maxY = Math.max(s.p1.y, s.cp.y, s.p2.y);
-    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-  } else if (s.type === "label") {
-    return { x: s.x - 2, y: s.y - 10, w: 30, h: 15 };
-  }
-  return null;
-}
 
 canvas.addEventListener("dblclick", (e) => {
   const pos = toCanvasCoords(e);
@@ -395,3 +388,69 @@ canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 resizeCanvas();
 saveState();
 redraw();
+
+// === SAVE/LOAD/DOWNLOAD FEATURES ===
+
+function downloadPNG() {
+  const exportCanvas = document.createElement("canvas");
+  exportCanvas.width = canvas.width;
+  exportCanvas.height = canvas.height;
+  const exportCtx = exportCanvas.getContext("2d");
+
+  exportCtx.fillStyle = "#ffffff";
+  exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+  exportCtx.drawImage(canvas, 0, 0);
+
+  const link = document.createElement("a");
+  link.download = "blueprint.png";
+  link.href = exportCanvas.toDataURL();
+  link.click();
+}
+
+function saveToLocal() {
+  localStorage.setItem("blueprint_shapes", JSON.stringify(shapes));
+  alert("Blueprint saved locally!");
+}
+
+function loadFromLocal() {
+  const data = localStorage.getItem("blueprint_shapes");
+  if (data) {
+    shapes = JSON.parse(data);
+    saveState();
+    redraw();
+    alert("Loaded from local storage.");
+  } else {
+    alert("No saved drawing found.");
+  }
+}
+
+function downloadJSON() {
+  const dataStr = JSON.stringify(shapes, null, 2);
+  const blob = new Blob([dataStr], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.download = "blueprint.json";
+  link.href = url;
+  link.click();
+
+  URL.revokeObjectURL(url);
+}
+
+function loadFromFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      shapes = JSON.parse(e.target.result);
+      saveState();
+      redraw();
+      alert("Drawing loaded.");
+    } catch (err) {
+      alert("Invalid JSON file.");
+    }
+  };
+  reader.readAsText(file);
+}
