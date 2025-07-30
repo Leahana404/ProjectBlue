@@ -25,6 +25,7 @@ function getVal(id, fallback) {
   const el = document.getElementById(id);
   return el ? el.value : fallback;
 }
+
 function getScale() { return parseFloat(getVal("scaleInput", "1")); }
 function getUnitMode() { return getVal("unitSelect", "feet-inches"); }
 function getColor() { return getVal("colorInput", "#000000"); }
@@ -77,30 +78,29 @@ function resizeCanvas() {
   canvas.height = height * devicePixelRatio;
   canvas.style.width = `${width}px`;
   canvas.style.height = `${height}px`;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset
   ctx.scale(devicePixelRatio, devicePixelRatio);
 }
 
 function drawGrid() {
   const spacing = baseGridSize * zoomLevel;
-  const width = canvas.width;
-  const height = canvas.height;
-  const startX = -offsetX % spacing;
-  const startY = -offsetY % spacing;
+  const width = canvas.width / devicePixelRatio;
+  const height = canvas.height / devicePixelRatio;
 
   ctx.save();
-  ctx.clearRect(0, 0, width, height);
   ctx.translate(offsetX % spacing, offsetY % spacing);
   ctx.beginPath();
   ctx.strokeStyle = '#e0e0e0';
   ctx.lineWidth = 1;
 
-  for (let x = -spacing; x <= width + spacing; x += spacing) {
-    ctx.moveTo(x, -spacing);
-    ctx.lineTo(x, height + spacing);
+  for (let x = -spacing; x < width + spacing; x += spacing) {
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
   }
-  for (let y = -spacing; y <= height + spacing; y += spacing) {
-    ctx.moveTo(-spacing, y);
-    ctx.lineTo(width + spacing, y);
+
+  for (let y = -spacing; y < height + spacing; y += spacing) {
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
   }
 
   ctx.stroke();
@@ -206,7 +206,55 @@ function formatLength(length, scale, unitMode) {
   }
 }
 
-// --- Mouse Events ---
+function downloadImage() {
+  const tempCanvas = document.createElement("canvas");
+  const tempCtx = tempCanvas.getContext("2d");
+
+  tempCanvas.width = canvas.width;
+  tempCanvas.height = canvas.height;
+
+  tempCtx.fillStyle = "#ffffff";
+  tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+  tempCtx.drawImage(canvas, 0, 0);
+
+  const link = document.createElement("a");
+  link.download = "blueprint.png";
+  link.href = tempCanvas.toDataURL("image/png");
+  link.click();
+}
+
+// Save/Load with names
+function updateLoadSelect() {
+  const loadSelect = document.getElementById("loadSelect");
+  const keys = Object.keys(localStorage).filter(k => k.startsWith("drawing_"));
+  loadSelect.innerHTML = `<option value="">Select a saved drawing</option>`;
+  keys.forEach(key => {
+    const name = key.replace("drawing_", "");
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    loadSelect.appendChild(option);
+  });
+}
+
+function saveDrawing() {
+  const name = document.getElementById("saveNameInput").value.trim();
+  if (!name) return alert("Please enter a name.");
+  localStorage.setItem("drawing_" + name, JSON.stringify(shapes));
+  updateLoadSelect();
+  alert("Saved!");
+}
+
+function loadDrawing() {
+  const name = document.getElementById("loadSelect").value;
+  if (!name) return alert("Select a drawing to load.");
+  const data = localStorage.getItem("drawing_" + name);
+  if (!data) return alert("Not found.");
+  shapes = JSON.parse(data);
+  saveState();
+  redraw();
+}
+
 canvas.addEventListener("mousedown", (e) => {
   const pos = toCanvasCoords(e);
   const snappedX = snap(pos.x);
@@ -329,11 +377,11 @@ canvas.addEventListener("mouseup", () => {
   if (currentMode === "erase") {
     const { x, y, width, height } = preview;
     shapes = shapes.filter(s => {
-      if (s.type === "curve") return true; // can expand later
-      const sx = s.x ?? 0;
-      const sy = s.y ?? 0;
-      const sw = s.width ?? 0;
-      const sh = s.height ?? 0;
+      if (s.type === "curve") return true;
+      const sx = s.x ?? s.x1 ?? 0;
+      const sy = s.y ?? s.y1 ?? 0;
+      const sw = s.width ?? (s.x2 ? s.x2 - s.x1 : 0);
+      const sh = s.height ?? (s.y2 ? s.y2 - s.y1 : 0);
       return !(sx >= x && sy >= y && sx + sw <= x + width && sy + sh <= y + height);
     });
     saveState();
@@ -388,69 +436,4 @@ canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 resizeCanvas();
 saveState();
 redraw();
-
-// === SAVE/LOAD/DOWNLOAD FEATURES ===
-
-function downloadPNG() {
-  const exportCanvas = document.createElement("canvas");
-  exportCanvas.width = canvas.width;
-  exportCanvas.height = canvas.height;
-  const exportCtx = exportCanvas.getContext("2d");
-
-  exportCtx.fillStyle = "#ffffff";
-  exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-  exportCtx.drawImage(canvas, 0, 0);
-
-  const link = document.createElement("a");
-  link.download = "blueprint.png";
-  link.href = exportCanvas.toDataURL();
-  link.click();
-}
-
-function saveToLocal() {
-  localStorage.setItem("blueprint_shapes", JSON.stringify(shapes));
-  alert("Blueprint saved locally!");
-}
-
-function loadFromLocal() {
-  const data = localStorage.getItem("blueprint_shapes");
-  if (data) {
-    shapes = JSON.parse(data);
-    saveState();
-    redraw();
-    alert("Loaded from local storage.");
-  } else {
-    alert("No saved drawing found.");
-  }
-}
-
-function downloadJSON() {
-  const dataStr = JSON.stringify(shapes, null, 2);
-  const blob = new Blob([dataStr], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-
-  const link = document.createElement("a");
-  link.download = "blueprint.json";
-  link.href = url;
-  link.click();
-
-  URL.revokeObjectURL(url);
-}
-
-function loadFromFile(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      shapes = JSON.parse(e.target.result);
-      saveState();
-      redraw();
-      alert("Drawing loaded.");
-    } catch (err) {
-      alert("Invalid JSON file.");
-    }
-  };
-  reader.readAsText(file);
-}
+updateLoadSelect();
