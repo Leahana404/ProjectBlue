@@ -30,23 +30,36 @@ function getVal(id, fallback) {
   const el = document.getElementById(id);
   return el ? el.value : fallback;
 }
-function getScale() { return parseFloat(getVal("scaleInput", "1")); }
-function getUnitMode() { return getVal("unitSelect", "feet-inches"); }
-function getColor() { return getVal("colorInput", "#000000"); }
-function getThickness() { return parseInt(getVal("thicknessInput", "2")); }
 
+function getScale() {
+  return parseFloat(getVal("scaleInput", "1"));
+}
+
+function getUnitMode() {
+  return getVal("unitSelect", "feet-inches");
+}
+
+function getColor() {
+  return getVal("colorInput", "#000000");
+}
+
+function getThickness() {
+  return parseInt(getVal("thicknessInput", "2"));
+}
 function snap(val) {
   const spacing = baseGridSize / 2;
   return Math.round(val / spacing) * spacing;
 }
+
 function toggleLabels() {
   showLabels = !showLabels;
   const button = document.querySelector("button[onclick='toggleLabels()']");
   if (button) {
-    button.textContent = showLabels ? "👁️ Hide Labels" : "👁️ Show Labels";
+    button.textContent = showLabels ? "Hide/Show Dimensions/Labels" : "Show Labels";
   }
   redraw();
 }
+
 function toCanvasCoords(e) {
   const rect = canvas.getBoundingClientRect();
   return {
@@ -93,7 +106,6 @@ function resizeCanvas() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(devicePixelRatio, devicePixelRatio);
 }
-
 function drawGrid() {
   const spacing = baseGridSize * zoomLevel;
   const width = canvas.width / devicePixelRatio;
@@ -102,7 +114,7 @@ function drawGrid() {
   ctx.save();
   ctx.translate(offsetX % spacing, offsetY % spacing);
   ctx.beginPath();
-  ctx.strokeStyle = '#cccccc';
+  ctx.strokeStyle = '#c0d8ee';
   ctx.lineWidth = 1;
 
   for (let x = -spacing; x < width + spacing; x += spacing) {
@@ -125,6 +137,7 @@ function redraw() {
   shapes.forEach(s => drawShape(s));
   if (preview) drawShape(preview, true);
 }
+
 function drawShape(shape, isPreview = false) {
   ctx.save();
   ctx.translate(offsetX, offsetY);
@@ -161,10 +174,12 @@ function drawShape(shape, isPreview = false) {
     ctx.moveTo(shape.p1.x, shape.p1.y);
     ctx.quadraticCurveTo(shape.cp.x, shape.cp.y, shape.p2.x, shape.p2.y);
     ctx.stroke();
-  } else if (shape.type === "label" && showLabels) {
-    ctx.fillStyle = shape.color;
-    ctx.font = `${14 / zoomLevel}px Arial`;
-    ctx.fillText(shape.label, shape.x, shape.y);
+  } else if (shape.type === "label") {
+    if (showLabels) {
+      ctx.fillStyle = shape.color;
+      ctx.font = `${14 / zoomLevel}px Arial`;
+      ctx.fillText(shape.label, shape.x, shape.y);
+    }
   } else if (shape.type === "erase") {
     ctx.setLineDash([5, 3]);
     ctx.strokeStyle = "red";
@@ -172,42 +187,7 @@ function drawShape(shape, isPreview = false) {
   }
 
   ctx.restore();
-}
-
-  if (shape.type === "line") {
-    ctx.beginPath();
-    ctx.moveTo(shape.x1, shape.y1);
-    ctx.lineTo(shape.x2, shape.y2);
-    ctx.stroke();
-    drawLineLabel(shape.x1, shape.y1, shape.x2, shape.y2, shape.color);
-  } else if (shape.type === "room") {
-    ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
-    drawRoomLabels(shape);
-  } else if (shape.type === "curve") {
-    ctx.beginPath();
-    ctx.moveTo(shape.p1.x, shape.p1.y);
-    ctx.quadraticCurveTo(shape.cp.x, shape.cp.y, shape.p2.x, shape.p2.y);
-    ctx.stroke();
-  } else if (shape.type === "label") {
-    ctx.fillStyle = shape.color;
-    ctx.font = `${14 / zoomLevel}px Arial`;
-    ctx.fillText(shape.label, shape.x, shape.y);
-  } else if (shape.type === "erase") {
-    ctx.setLineDash([5, 3]);
-    ctx.strokeStyle = "red";
-    ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
-  }
-  } else if (shape.type === "label") {
-  if (showLabels) {
-    ctx.fillStyle = shape.color;
-    ctx.font = `${14 / zoomLevel}px Arial`;
-    ctx.fillText(shape.label, shape.x, shape.y);
-  }
-}
-  ctx.restore();
-}
-
-function drawLineLabel(x1, y1, x2, y2, color) {
+}function drawLineLabel(x1, y1, x2, y2, color) {
   if (!showLabels) return;
   const dx = x2 - x1;
   const dy = y2 - y1;
@@ -323,9 +303,11 @@ function downloadImage() {
   const tempCtx = tempCanvas.getContext("2d");
   tempCanvas.width = canvas.width;
   tempCanvas.height = canvas.height;
+
   tempCtx.fillStyle = "#ffffff";
   tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
   tempCtx.drawImage(canvas, 0, 0);
+
   const link = document.createElement("a");
   link.download = "blueprint.png";
   link.href = tempCanvas.toDataURL("image/png");
@@ -333,7 +315,6 @@ function downloadImage() {
 }
 
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-
 canvas.addEventListener("mousedown", (e) => {
   if (e.button === 1) {
     isDraggingCanvas = true;
@@ -396,6 +377,7 @@ canvas.addEventListener("mousedown", (e) => {
     }
   }
 });
+
 canvas.addEventListener("mousemove", (e) => {
   if (isDraggingCanvas) {
     const dx = e.clientX - dragStart.x;
@@ -533,7 +515,17 @@ canvas.addEventListener("wheel", (e) => {
   redraw();
 }, { passive: false });
 
+// Disable default right-click menu
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+// Initial load and setup
 resizeCanvas();
 saveState();
 redraw();
 updateLoadSelect();
+
+// Redraw on window resize
+window.addEventListener("resize", () => {
+  resizeCanvas();
+  redraw();
+});
