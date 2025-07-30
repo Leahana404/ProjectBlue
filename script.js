@@ -17,6 +17,7 @@ let curveTemp = {};
 let isDraggingCanvas = false;
 let dragStart = null;
 let showLabels = true;
+
 let selectedShape = null;
 let isDraggingShape = false;
 let dragOffset = { x: 0, y: 0 };
@@ -101,7 +102,7 @@ function drawGrid() {
   ctx.save();
   ctx.translate(offsetX % spacing, offsetY % spacing);
   ctx.beginPath();
-  ctx.strokeStyle = '#e0e0e0';
+  ctx.strokeStyle = '#cccccc';
   ctx.lineWidth = 1;
 
   for (let x = -spacing; x < width + spacing; x += spacing) {
