@@ -1,60 +1,64 @@
 body {
-  font-family: Arial, sans-serif;
-  background: #9fc3e9;
   margin: 0;
-  padding: 0;
+  font-family: Arial, sans-serif;
+  background-color: #a3c6e5;
   overflow: hidden;
 }
 
-h2 {
-  margin: 0;
+.toolbar {
+  background-color: #f0f4f7;
   padding: 10px;
-  text-align: center;
-  background: #ffffff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: 2px solid #ccc;
 }
 
-#controls {
-  position: fixed;
-  top: 50px;
-  left: 0;
-  right: 0;
-  background: #ffffffdd;
-  padding: 10px;
+.toolbar h1 {
+  margin: 0;
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.tool-buttons, .tool-options {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  z-index: 10;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
-#controls > * {
+.tool-options input[type="text"],
+.tool-options input[type="number"],
+.tool-options select {
+  padding: 4px 6px;
   font-size: 14px;
-  padding: 5px;
-  border-radius: 4px;
+}
+
+.tool-options input[type="color"] {
+  width: 36px;
+  height: 28px;
+  border: none;
+  padding: 0;
+}
+
+button {
+  background-color: #f8f8f8;
   border: 1px solid #ccc;
-  background-color: #f7f7f7;
+  padding: 6px 10px;
+  font-size: 14px;
+  border-radius: 4px;
   cursor: pointer;
 }
 
-#controls input[type="color"],
-#controls input[type="number"],
-#controls select {
-  padding: 4px;
-  height: 28px;
+button:hover {
+  background-color: #e0e0e0;
 }
 
 canvas {
-  position: absolute;
-  top: 110px;
-  left: 0;
-  width: 100vw;
-  height: calc(100vh - 110px);
-  background: #9fc3e9;
   display: block;
+  position: absolute;
+  top: 110px; /* Adjust based on toolbar height */
+  left: 0;
+  width: 100%;
+  height: calc(100% - 110px);
+  background-color: transparent;
   cursor: crosshair;
-}
-
-canvas:active {
-  cursor: grab;
 }
