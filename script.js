@@ -17,6 +17,10 @@ let curveTemp = {};
 let isDraggingCanvas = false;
 let dragStart = null;
 
+let selectedShape = null;
+let isDraggingShape = false;
+let dragOffset = { x: 0, y: 0 };
+
 const baseGridSize = 20;
 const minZoom = 0.2;
 const maxZoom = 4;
@@ -49,6 +53,7 @@ function setMode(mode) {
   curveClicks = 0;
   curveTemp = {};
   preview = null;
+  selectedShape = null;
 }
 
 function saveState() {
@@ -78,7 +83,7 @@ function resizeCanvas() {
   canvas.height = height * devicePixelRatio;
   canvas.style.width = `${width}px`;
   canvas.style.height = `${height}px`;
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset
   ctx.scale(devicePixelRatio, devicePixelRatio);
 }
 
@@ -111,6 +116,7 @@ function redraw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
   shapes.forEach(s => drawShape(s));
+  if (selectedShape) drawShape(selectedShape, true);
   if (preview) drawShape(preview, true);
 }
 
@@ -121,24 +127,33 @@ function drawShape(shape, isPreview = false) {
   ctx.strokeStyle = shape.color || "#000";
   ctx.lineWidth = (shape.thickness || 2) / zoomLevel;
 
+  if (shape === selectedShape) {
+    ctx.setLineDash([5, 3]);
+    ctx.strokeStyle = "blue";
+  }
+
   if (shape.type === "line") {
     ctx.beginPath();
     ctx.moveTo(shape.x1, shape.y1);
     ctx.lineTo(shape.x2, shape.y2);
     ctx.stroke();
     drawLineLabel(shape.x1, shape.y1, shape.x2, shape.y2, shape.color);
+
   } else if (shape.type === "room") {
     ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
     drawRoomLabels(shape);
+
   } else if (shape.type === "curve") {
     ctx.beginPath();
     ctx.moveTo(shape.p1.x, shape.p1.y);
     ctx.quadraticCurveTo(shape.cp.x, shape.cp.y, shape.p2.x, shape.p2.y);
     ctx.stroke();
+
   } else if (shape.type === "label") {
     ctx.fillStyle = shape.color;
     ctx.font = `${14 / zoomLevel}px Arial`;
     ctx.fillText(shape.label, shape.x, shape.y);
+
   } else if (shape.type === "erase") {
     ctx.setLineDash([5, 3]);
     ctx.strokeStyle = "red";
@@ -235,8 +250,10 @@ function updateLoadSelect() {
 function saveDrawing() {
   const name = document.getElementById("saveNameInput").value.trim();
   if (!name) return alert("Please enter a name.");
+
   const key = "drawing_" + name;
   localStorage.setItem(key, JSON.stringify(shapes));
+
   updateLoadSelect();
   alert(`Saved drawing "${name}" successfully.`);
 }
@@ -252,180 +269,8 @@ function loadDrawing() {
   redraw();
 }
 
-canvas.addEventListener("mousedown", (e) => {
-  const pos = toCanvasCoords(e);
-  const snappedX = snap(pos.x);
-  const snappedY = snap(pos.y);
-
-  if (e.button === 2 || e.button === 1) {
-    isDraggingCanvas = true;
-    dragStart = { x: e.clientX, y: e.clientY };
-    return;
-  }
-
-  if (currentMode === "erase") {
-    isDrawing = true;
-    startX = snappedX;
-    startY = snappedY;
-    preview = { type: "erase", x: startX, y: startY, width: 0, height: 0 };
-    redraw();
-    return;
-  }
-
-  if (currentMode === "curve") {
-    if (curveClicks === 0) {
-      curveTemp.p1 = { x: snappedX, y: snappedY };
-      curveClicks = 1;
-    } else if (curveClicks === 1) {
-      curveTemp.cp = { x: snappedX, y: snappedY };
-      curveClicks = 2;
-    } else if (curveClicks === 2) {
-      curveTemp.p2 = { x: snappedX, y: snappedY };
-      shapes.push({
-        type: "curve",
-        p1: curveTemp.p1,
-        cp: curveTemp.cp,
-        p2: curveTemp.p2,
-        color: getColor(),
-        thickness: getThickness()
-      });
-      saveState();
-      curveClicks = 0;
-      curveTemp = {};
-      preview = null;
-      redraw();
-    }
-    return;
-  }
-
-  isDrawing = true;
-  startX = snappedX;
-  startY = snappedY;
-});
-
-canvas.addEventListener("mousemove", (e) => {
-  if (isDraggingCanvas && dragStart) {
-    offsetX += e.clientX - dragStart.x;
-    offsetY += e.clientY - dragStart.y;
-    dragStart = { x: e.clientX, y: e.clientY };
-    redraw();
-    return;
-  }
-
-  if (!isDrawing && currentMode !== "curve") return;
-
-  const pos = toCanvasCoords(e);
-  const endX = snap(pos.x);
-  const endY = snap(pos.y);
-  const color = getColor();
-  const thickness = getThickness();
-
-  if (currentMode === "erase" && isDrawing) {
-    const x = Math.min(startX, endX);
-    const y = Math.min(startY, endY);
-    const w = Math.abs(endX - startX);
-    const h = Math.abs(endY - startY);
-    preview = { type: "erase", x, y, width: w, height: h };
-
-  } else if (currentMode === "line") {
-    preview = { type: "line", x1: startX, y1: startY, x2: endX, y2: endY, color, thickness };
-
-  } else if (currentMode === "room") {
-    preview = {
-      type: "room",
-      x: Math.min(startX, endX),
-      y: Math.min(startY, endY),
-      width: Math.abs(endX - startX),
-      height: Math.abs(endY - startY),
-      color, thickness
-    };
-
-  } else if (currentMode === "curve") {
-    if (curveClicks === 1) {
-      preview = {
-        type: "curve",
-        p1: curveTemp.p1,
-        cp: { x: endX, y: endY },
-        p2: { x: endX, y: endY },
-        color, thickness
-      };
-    } else if (curveClicks === 2) {
-      preview = {
-        type: "curve",
-        p1: curveTemp.p1,
-        cp: curveTemp.cp,
-        p2: { x: endX, y: endY },
-        color, thickness
-      };
-    }
-  }
-
-  redraw();
-});
-
-canvas.addEventListener("mouseup", () => {
-  if (isDraggingCanvas) {
-    isDraggingCanvas = false;
-    return;
-  }
-
-  if (!isDrawing || !preview) return;
-
-  if (currentMode === "erase") {
-    const { x, y, width, height } = preview;
-    shapes = shapes.filter(s => {
-      if (s.type === "curve") return true;
-      const sx = s.x ?? s.x1 ?? 0;
-      const sy = s.y ?? s.y1 ?? 0;
-      const sw = s.width ?? (s.x2 ? s.x2 - s.x1 : 0);
-      const sh = s.height ?? (s.y2 ? s.y2 - s.y1 : 0);
-      return !(sx >= x && sy >= y && sx + sw <= x + width && sy + sh <= y + height);
-    });
-    saveState();
-  } else if (currentMode !== "curve") {
-    shapes.push(preview);
-    saveState();
-  }
-
-  preview = null;
-  isDrawing = false;
-  redraw();
-});
-
-canvas.addEventListener("dblclick", (e) => {
-  const pos = toCanvasCoords(e);
-  const text = prompt("Enter label text:");
-  if (text) {
-    shapes.push({
-      type: "label",
-      x: pos.x,
-      y: pos.y,
-      label: text,
-      color: getColor(),
-      thickness: 1
-    });
-    saveState();
-    redraw();
-  }
-});
-
-canvas.addEventListener("wheel", (e) => {
-  e.preventDefault();
-  const zoomFactor = 1.1;
-  const mouse = toCanvasCoords(e);
-
-  const delta = e.deltaY < 0 ? zoomFactor : 1 / zoomFactor;
-  const newZoom = Math.min(maxZoom, Math.max(minZoom, zoomLevel * delta));
-
-  const wx = (mouse.x * zoomLevel + offsetX);
-  const wy = (mouse.y * zoomLevel + offsetY);
-
-  zoomLevel = newZoom;
-
-  offsetX = wx - mouse.x * zoomLevel;
-  offsetY = wy - mouse.y * zoomLevel;
-
-  redraw();
-});
-
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+resizeCanvas();
+saveState();
+redraw();
+updateLoadSelect();
