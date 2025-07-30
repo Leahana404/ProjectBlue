@@ -6,11 +6,13 @@ body {
   overflow: hidden;
 }
 
-h2 {
-  margin: 0;
-  padding: 10px;
-  text-align: center;
+header {
   background: #ffffff;
+  padding: 12px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: bold;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 #controls {
@@ -18,27 +20,56 @@ h2 {
   top: 50px;
   left: 0;
   right: 0;
-  background: #ffffffcc;
-  padding: 10px;
+  background: #ffffffee;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  padding: 10px;
   z-index: 10;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  font-size: 14px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  justify-content: center;
+  align-items: center;
 }
 
 #controls > * {
-  font-size: 14px;
-  padding: 5px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  background: #f9f9f9;
+  transition: background 0.2s ease;
+}
+
+#controls > *:hover {
+  background: #e0e0e0;
 }
 
 canvas {
   position: absolute;
-  top: 110px;
+  top: 120px;
   left: 0;
   width: 100vw;
-  height: calc(100vh - 110px);
-  background: #9fc3e9;
+  height: calc(100vh - 120px);
   display: block;
+  background-color: #9fc3e9;
   cursor: crosshair;
+}
+
+input[type="color"],
+input[type="number"],
+input[type="text"],
+select {
+  min-width: 90px;
+  font-size: 14px;
+}
+
+button {
+  cursor: pointer;
+}
+
+.group {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
 }
