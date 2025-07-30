@@ -11,6 +11,7 @@ h2 {
   padding: 10px;
   text-align: center;
   background: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 #controls {
@@ -18,11 +19,10 @@ h2 {
   top: 50px;
   left: 0;
   right: 0;
-  background: #ffffffcc;
+  background: #ffffffdd;
   padding: 10px;
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
   gap: 10px;
   z-index: 10;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
@@ -31,6 +31,17 @@ h2 {
 #controls > * {
   font-size: 14px;
   padding: 5px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background-color: #f7f7f7;
+  cursor: pointer;
+}
+
+#controls input[type="color"],
+#controls input[type="number"],
+#controls select {
+  padding: 4px;
+  height: 28px;
 }
 
 canvas {
@@ -42,4 +53,8 @@ canvas {
   background: #9fc3e9;
   display: block;
   cursor: crosshair;
+}
+
+canvas:active {
+  cursor: grab;
 }
