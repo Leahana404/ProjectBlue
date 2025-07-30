@@ -16,7 +16,7 @@ let curveClicks = 0;
 let curveTemp = {};
 let isDraggingCanvas = false;
 let dragStart = null;
-
+let showLabels = true;
 let selectedShape = null;
 let isDraggingShape = false;
 let dragOffset = { x: 0, y: 0 };
@@ -38,7 +38,14 @@ function snap(val) {
   const spacing = baseGridSize / 2;
   return Math.round(val / spacing) * spacing;
 }
-
+function toggleLabels() {
+  showLabels = !showLabels;
+  const button = document.querySelector("button[onclick='toggleLabels()']");
+  if (button) {
+    button.textContent = showLabels ? "👁️ Hide Labels" : "👁️ Show Labels";
+  }
+  redraw();
+}
 function toCanvasCoords(e) {
   const rect = canvas.getBoundingClientRect();
   return {
@@ -153,7 +160,7 @@ function drawShape(shape, isPreview = false) {
     ctx.moveTo(shape.p1.x, shape.p1.y);
     ctx.quadraticCurveTo(shape.cp.x, shape.cp.y, shape.p2.x, shape.p2.y);
     ctx.stroke();
-  } else if (shape.type === "label") {
+  } else if (shape.type === "label" && showLabels) {
     ctx.fillStyle = shape.color;
     ctx.font = `${14 / zoomLevel}px Arial`;
     ctx.fillText(shape.label, shape.x, shape.y);
@@ -166,7 +173,41 @@ function drawShape(shape, isPreview = false) {
   ctx.restore();
 }
 
+  if (shape.type === "line") {
+    ctx.beginPath();
+    ctx.moveTo(shape.x1, shape.y1);
+    ctx.lineTo(shape.x2, shape.y2);
+    ctx.stroke();
+    drawLineLabel(shape.x1, shape.y1, shape.x2, shape.y2, shape.color);
+  } else if (shape.type === "room") {
+    ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+    drawRoomLabels(shape);
+  } else if (shape.type === "curve") {
+    ctx.beginPath();
+    ctx.moveTo(shape.p1.x, shape.p1.y);
+    ctx.quadraticCurveTo(shape.cp.x, shape.cp.y, shape.p2.x, shape.p2.y);
+    ctx.stroke();
+  } else if (shape.type === "label") {
+    ctx.fillStyle = shape.color;
+    ctx.font = `${14 / zoomLevel}px Arial`;
+    ctx.fillText(shape.label, shape.x, shape.y);
+  } else if (shape.type === "erase") {
+    ctx.setLineDash([5, 3]);
+    ctx.strokeStyle = "red";
+    ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+  }
+  } else if (shape.type === "label") {
+  if (showLabels) {
+    ctx.fillStyle = shape.color;
+    ctx.font = `${14 / zoomLevel}px Arial`;
+    ctx.fillText(shape.label, shape.x, shape.y);
+  }
+}
+  ctx.restore();
+}
+
 function drawLineLabel(x1, y1, x2, y2, color) {
+  if (!showLabels) return;
   const dx = x2 - x1;
   const dy = y2 - y1;
   const distance = Math.sqrt(dx * dx + dy * dy);
@@ -179,6 +220,7 @@ function drawLineLabel(x1, y1, x2, y2, color) {
 }
 
 function drawRoomLabels(shape) {
+  if (!showLabels) return;
   const { x, y, width, height } = shape;
   const scale = getScale();
   const unitMode = getUnitMode();
