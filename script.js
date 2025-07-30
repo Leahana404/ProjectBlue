@@ -17,10 +17,6 @@ let curveTemp = {};
 let isDraggingCanvas = false;
 let dragStart = null;
 
-let selectedShape = null;
-let isDraggingShape = false;
-let dragOffset = { x: 0, y: 0 };
-
 const baseGridSize = 20;
 const minZoom = 0.2;
 const maxZoom = 4;
@@ -53,7 +49,6 @@ function setMode(mode) {
   curveClicks = 0;
   curveTemp = {};
   preview = null;
-  selectedShape = null;
 }
 
 function saveState() {
@@ -116,7 +111,6 @@ function redraw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
   shapes.forEach(s => drawShape(s));
-  if (selectedShape) drawShape(selectedShape, true);
   if (preview) drawShape(preview, true);
 }
 
@@ -126,11 +120,6 @@ function drawShape(shape, isPreview = false) {
   ctx.scale(zoomLevel, zoomLevel);
   ctx.strokeStyle = shape.color || "#000";
   ctx.lineWidth = (shape.thickness || 2) / zoomLevel;
-
-  if (shape === selectedShape) {
-    ctx.setLineDash([5, 3]);
-    ctx.strokeStyle = "blue";
-  }
 
   if (shape.type === "line") {
     ctx.beginPath();
