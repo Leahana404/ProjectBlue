@@ -365,6 +365,25 @@ canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 canvas.addEventListener("mousedown", onMouseDown);
 canvas.addEventListener("mousemove", onMouseMove);
 canvas.addEventListener("mouseup", onMouseUp);
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const zoomAmount = 0.1;
+  const mouse = toCanvasCoords(e);
+  const oldZoom = zoomLevel;
+
+  if (e.deltaY < 0) {
+    zoomLevel = Math.min(maxZoom, zoomLevel + zoomAmount);
+  } else {
+    zoomLevel = Math.max(minZoom, zoomLevel - zoomAmount);
+  }
+
+  // Adjust offset to zoom toward mouse position
+  offsetX -= (mouse.x * (zoomLevel - oldZoom));
+  offsetY -= (mouse.y * (zoomLevel - oldZoom));
+
+  redraw();
+});
+
 resizeCanvas();
 saveState();
 redraw();
