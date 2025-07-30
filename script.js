@@ -9,13 +9,14 @@ let currentMode = "room";
 let shapes = [];
 let history = [], future = [];
 let preview = null;
-let zoomLevel = 0.5; // Reset to default zoomed out
+let zoomLevel = 0.5;
 let offsetX = window.innerWidth / 2;
 let offsetY = window.innerHeight / 2;
 let curveClicks = 0;
 let curveTemp = {};
 let isDraggingCanvas = false;
 let dragStart = null;
+let selectedShape = null; // For selection highlight
 
 const baseGridSize = 20;
 const minZoom = 0.2;
@@ -120,6 +121,21 @@ function drawShape(shape, isPreview = false) {
   ctx.scale(zoomLevel, zoomLevel);
   ctx.strokeStyle = shape.color || "#000";
   ctx.lineWidth = (shape.thickness || 2) / zoomLevel;
+
+  if (shape === selectedShape) {
+    ctx.save();
+    ctx.strokeStyle = "#00f";
+    ctx.lineWidth = 2 / zoomLevel;
+    if (shape.type === "room") {
+      ctx.strokeRect(shape.x - 4, shape.y - 4, shape.width + 8, shape.height + 8);
+    } else if (shape.type === "line") {
+      ctx.beginPath();
+      ctx.moveTo(shape.x1 - 4, shape.y1 - 4);
+      ctx.lineTo(shape.x2 + 4, shape.y2 + 4);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 
   if (shape.type === "line") {
     ctx.beginPath();
