@@ -177,7 +177,7 @@ function drawShape(shape, isPreview = false) {
   } else if (shape.type === "label") {
     if (showLabels) {
       ctx.fillStyle = shape.color;
-      ctx.font = `${20 / zoomLevel}px Arial`;
+      ctx.font = `${18 / zoomLevel}px Arial`;
       ctx.fillText(shape.label, shape.x, shape.y);
     }
   } else if (shape.type === "erase") {
@@ -196,7 +196,7 @@ function drawShape(shape, isPreview = false) {
   const midX = (x1 + x2) / 2;
   const midY = (y1 + y2) / 2;
   ctx.fillStyle = color;
-  ctx.font = `${20 / zoomLevel}px Arial`;
+  ctx.font = `${18 / zoomLevel}px Arial`;
   ctx.fillText(label, midX + 5, midY - 5);
 }
 
@@ -210,7 +210,7 @@ function drawRoomLabels(shape) {
   const labelRight = formatLength(height, scale, unitMode);
 
   ctx.fillStyle = shape.color || "#000";
-  ctx.font = `${20 / zoomLevel}px Arial`;
+  ctx.font = `${18 / zoomLevel}px Arial`;
 
   ctx.fillText(labelTop, x + width / 2 - ctx.measureText(labelTop).width / 2, y - 5);
 
