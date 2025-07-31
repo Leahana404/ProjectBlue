@@ -28,7 +28,44 @@ let groupedShapes = []; // Array of { id: string, shapes: array of shape refs, l
 function generateGroupId() {
   return 'group_' + Math.random().toString(36).substr(2, 9);
 }
+function groupSelectedShapes() {
+  if (currentGroup.length < 2) return alert("Select at least two shapes to group.");
+  const id = generateGroupId();
+  groupedShapes.push({
+    id,
+    shapes: [...currentGroup],
+    locked: false
+  });
+  selectedShape = null;
+  currentGroup = [];
+  saveState();
+  redraw();
+}
 
+function ungroupSelectedShapes() {
+  if (currentGroup.length === 0) return;
+
+  groupedShapes = groupedShapes.filter(group => {
+    const shared = group.shapes.some(shape => currentGroup.includes(shape));
+    return !shared;
+  });
+
+  selectedShape = null;
+  currentGroup = [];
+  saveState();
+  redraw();
+}
+
+function toggleLockGroup() {
+  if (currentGroup.length === 0) return;
+  const group = getGroupForShape(currentGroup[0]);
+  if (!group) return alert("No group found.");
+
+  group.locked = !group.locked;
+  alert(group.locked ? "Group locked." : "Group unlocked.");
+  saveState();
+  redraw();
+}
 function isShapeInGroup(shape) {
   return groupedShapes.some(group => group.shapes.includes(shape));
 }
