@@ -169,17 +169,23 @@ function drawGrid() {
   const height = canvas.height / devicePixelRatio;
 
   ctx.save();
-  ctx.translate(offsetX % spacing, offsetY % spacing);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset all transforms
+  ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear clean canvas
+
   ctx.beginPath();
-  ctx.strokeStyle = '#c0d8ee';
+  ctx.strokeStyle = "#c0d8ee";
   ctx.lineWidth = 1;
 
-  for (let x = -spacing; x < width + spacing; x += spacing) {
+  // Adjust grid position to follow offset
+  const offsetXMod = offsetX % spacing;
+  const offsetYMod = offsetY % spacing;
+
+  for (let x = -offsetXMod; x < width; x += spacing) {
     ctx.moveTo(x, 0);
     ctx.lineTo(x, height);
   }
 
-  for (let y = -spacing; y < height + spacing; y += spacing) {
+  for (let y = -offsetYMod; y < height; y += spacing) {
     ctx.moveTo(0, y);
     ctx.lineTo(width, y);
   }
