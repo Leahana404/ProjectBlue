@@ -19,8 +19,23 @@ let dragStart = null;
 let showLabels = true;
 
 let selectedShape = null;
+let selectedShapes = [];
 let isDraggingShape = false;
 let dragOffset = { x: 0, y: 0 };
+let currentGroup = [];
+let groupedShapes = []; // Array of { id: string, shapes: array of shape refs, locked: bool }
+
+function generateGroupId() {
+  return 'group_' + Math.random().toString(36).substr(2, 9);
+}
+
+function isShapeInGroup(shape) {
+  return groupedShapes.some(group => group.shapes.includes(shape));
+}
+
+function getGroupForShape(shape) {
+  return groupedShapes.find(group => group.shapes.includes(shape));
+}
 
 const baseGridSize = 20;
 const minZoom = 0.2;
@@ -30,33 +45,19 @@ function getVal(id, fallback) {
   const el = document.getElementById(id);
   return el ? el.value : fallback;
 }
+function getScale() { return parseFloat(getVal("scaleInput", "1")); }
+function getUnitMode() { return getVal("unitSelect", "feet-inches"); }
+function getColor() { return getVal("colorInput", "#000000"); }
+function getThickness() { return parseInt(getVal("thicknessInput", "2")); }
 
-function getScale() {
-  return parseFloat(getVal("scaleInput", "1"));
-}
-
-function getUnitMode() {
-  return getVal("unitSelect", "feet-inches");
-}
-
-function getColor() {
-  return getVal("colorInput", "#000000");
-}
-
-function getThickness() {
-  return parseInt(getVal("thicknessInput", "2"));
-}
 function snap(val) {
   const spacing = baseGridSize / 2;
   return Math.round(val / spacing) * spacing;
 }
-
 function toggleLabels() {
   showLabels = !showLabels;
   const button = document.querySelector("button[onclick='toggleLabels()']");
-  if (button) {
-    button.textContent = showLabels ? "Hide Labels" : "Show Labels";
-  }
+  if (button) button.textContent = showLabels ? "Hide Labels" : "Show Labels";
   redraw();
 }
 
@@ -68,12 +69,29 @@ function toCanvasCoords(e) {
   };
 }
 
+function groupSelectedShapes() {
+  if (currentGroup.length < 2) return alert("Select at least 2 shapes to group.");
+  const groupId = generateGroupId();
+  groupedShapes.push({ id: groupId, shapes: [...currentGroup], locked: false });
+  currentGroup = [];
+  redraw();
+}
+
+function toggleGroupLock(shape) {
+  const group = getGroupForShape(shape);
+  if (!group) return alert("Shape is not in a group.");
+  group.locked = !group.locked;
+  alert(group.locked ? "Group locked." : "Group unlocked.");
+  redraw();
+}
+
 function setMode(mode) {
   currentMode = mode;
   curveClicks = 0;
   curveTemp = {};
   preview = null;
   selectedShape = null;
+  selectedShapes = [];
 }
 
 function saveState() {
@@ -106,6 +124,7 @@ function resizeCanvas() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(devicePixelRatio, devicePixelRatio);
 }
+
 function drawGrid() {
   const spacing = baseGridSize * zoomLevel;
   const width = canvas.width / devicePixelRatio;
@@ -130,12 +149,29 @@ function drawGrid() {
   ctx.stroke();
   ctx.restore();
 }
-
 function redraw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
   shapes.forEach(s => drawShape(s));
   if (preview) drawShape(preview, true);
+  if (selectedShapes.length > 0) {
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(zoomLevel, zoomLevel);
+    ctx.strokeStyle = "#00f";
+    ctx.lineWidth = 2 / zoomLevel;
+    selectedShapes.forEach(s => {
+      if (s.type === "room") {
+        ctx.strokeRect(s.x - 4, s.y - 4, s.width + 8, s.height + 8);
+      } else if (s.type === "line") {
+        ctx.beginPath();
+        ctx.moveTo(s.x1 - 4, s.y1 - 4);
+        ctx.lineTo(s.x2 + 4, s.y2 + 4);
+        ctx.stroke();
+      }
+    });
+    ctx.restore();
+  }
 }
 
 function drawShape(shape, isPreview = false) {
@@ -145,7 +181,8 @@ function drawShape(shape, isPreview = false) {
   ctx.strokeStyle = shape.color || "#000";
   ctx.lineWidth = (shape.thickness || 2) / zoomLevel;
 
-  if (shape === selectedShape) {
+  // Highlight all selected shapes in group
+  if (currentMode === "select" && currentGroup.includes(shape)) {
     ctx.save();
     ctx.strokeStyle = "#00f";
     ctx.lineWidth = 2 / zoomLevel;
@@ -187,7 +224,50 @@ function drawShape(shape, isPreview = false) {
   }
 
   ctx.restore();
-}function drawLineLabel(x1, y1, x2, y2, color) {
+}
+function groupSelected() {
+  if (currentGroup.length < 2) return alert("Select at least two shapes to group.");
+
+  const groupId = generateGroupId();
+  groupedShapes.push({
+    id: groupId,
+    shapes: [...currentGroup],
+    locked: false
+  });
+  currentGroup = [];
+  selectedShape = null;
+  redraw();
+  saveState();
+}
+
+function ungroupSelected() {
+  let changed = false;
+  for (let i = groupedShapes.length - 1; i >= 0; i--) {
+    const group = groupedShapes[i];
+    if (group.shapes.some(s => currentGroup.includes(s))) {
+      groupedShapes.splice(i, 1);
+      changed = true;
+    }
+  }
+  if (changed) {
+    currentGroup = [];
+    selectedShape = null;
+    redraw();
+    saveState();
+  } else {
+    alert("No group found to ungroup.");
+  }
+}
+
+function toggleGroupLock() {
+  const group = currentGroup.length ? getGroupForShape(currentGroup[0]) : null;
+  if (!group) return alert("No group selected.");
+  group.locked = !group.locked;
+  redraw();
+  saveState();
+}
+
+function drawLineLabel(x1, y1, x2, y2, color) {
   if (!showLabels) return;
   const dx = x2 - x1;
   const dy = y2 - y1;
@@ -304,8 +384,11 @@ function downloadImage() {
   tempCanvas.width = canvas.width;
   tempCanvas.height = canvas.height;
 
+  // Fill background with white
   tempCtx.fillStyle = "#ffffff";
   tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+  // Copy drawing to export canvas
   tempCtx.drawImage(canvas, 0, 0);
 
   const link = document.createElement("a");
@@ -313,8 +396,6 @@ function downloadImage() {
   link.href = tempCanvas.toDataURL("image/png");
   link.click();
 }
-
-canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 canvas.addEventListener("mousedown", (e) => {
   if (e.button === 1) {
     isDraggingCanvas = true;
@@ -325,33 +406,59 @@ canvas.addEventListener("mousedown", (e) => {
 
   const { x, y } = toCanvasCoords(e);
 
+  // ✅ Select Mode (with group logic)
   if (currentMode === "select") {
     selectedShape = null;
+    let clickedShape = null;
+
     for (let i = shapes.length - 1; i >= 0; i--) {
       const shape = shapes[i];
       if (shapeContains(shape, x, y)) {
-        selectedShape = shape;
-        if (shape.type === "room") {
-          dragOffset.x = x - shape.x;
-          dragOffset.y = y - shape.y;
-        } else if (shape.type === "line") {
-          dragOffset.x = x - shape.x1;
-          dragOffset.y = y - shape.y1;
-        }
-        isDraggingShape = true;
+        clickedShape = shape;
         break;
       }
     }
+
+    if (clickedShape) {
+      const group = getGroupForShape(clickedShape);
+      if (group && group.locked) {
+        alert("This group is locked.");
+        return;
+      }
+
+      selectedShape = clickedShape;
+
+      if (!currentGroup.includes(clickedShape)) {
+        currentGroup.push(clickedShape);
+      } else {
+        currentGroup = currentGroup.filter(s => s !== clickedShape);
+      }
+
+      if (clickedShape.type === "room") {
+        dragOffset.x = x - clickedShape.x;
+        dragOffset.y = y - clickedShape.y;
+      } else if (clickedShape.type === "line") {
+        dragOffset.x = x - clickedShape.x1;
+        dragOffset.y = y - clickedShape.y1;
+      }
+
+      isDraggingShape = true;
+    } else {
+      currentGroup = [];
+    }
+
     redraw();
     return;
   }
 
+  // 🛑 Don't draw if not left-click
   if (e.button !== 0) return;
 
   isDrawing = true;
   startX = snap(x);
   startY = snap(y);
 
+  // 🎯 Curve drawing phase tracker
   if (currentMode === "curve") {
     curveClicks++;
     if (curveClicks === 1) {
@@ -391,19 +498,32 @@ canvas.addEventListener("mousemove", (e) => {
 
   const { x, y } = toCanvasCoords(e);
 
-  if (isDraggingShape && selectedShape && currentMode === "select") {
-    if (selectedShape.type === "room") {
-      selectedShape.x = x - dragOffset.x;
-      selectedShape.y = y - dragOffset.y;
-    } else if (selectedShape.type === "line") {
-      const dx = x - dragOffset.x - selectedShape.x1;
-      const dy = y - dragOffset.y - selectedShape.y1;
-      selectedShape.x1 += dx;
-      selectedShape.y1 += dy;
-      selectedShape.x2 += dx;
-      selectedShape.y2 += dy;
-      dragOffset.x = x - selectedShape.x1;
-      dragOffset.y = y - selectedShape.y1;
+  if (currentMode === "select") {
+    const { x, y } = toCanvasCoords(e);
+    selectedShape = null;
+
+    for (let i = shapes.length - 1; i >= 0; i--) {
+      const shape = shapes[i];
+      if (shapeContains(shape, x, y)) {
+        const group = getGroupForShape(shape);
+        if (group) {
+          currentGroup = [...group.shapes]; // select the whole group
+        } else {
+          selectedShape = shape;
+          currentGroup = [shape];
+        }
+
+        if (shape.type === "room") {
+          dragOffset.x = x - shape.x;
+          dragOffset.y = y - shape.y;
+        } else if (shape.type === "line") {
+          dragOffset.x = x - shape.x1;
+          dragOffset.y = y - shape.y1;
+        }
+
+        isDraggingShape = true;
+        break;
+      }
     }
     redraw();
     return;
@@ -454,7 +574,6 @@ canvas.addEventListener("mousemove", (e) => {
 
   redraw();
 });
-
 canvas.addEventListener("mouseup", (e) => {
   if (e.button === 1) {
     isDraggingCanvas = false;
@@ -496,6 +615,7 @@ canvas.addEventListener("mouseup", (e) => {
     redraw();
   }
 });
+
 canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
   const zoomFactor = 1.1;
@@ -515,10 +635,10 @@ canvas.addEventListener("wheel", (e) => {
   redraw();
 }, { passive: false });
 
-// Disable default right-click menu
+// Disable right-click menu
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
-// Initial load and setup
+// Initial canvas setup
 resizeCanvas();
 saveState();
 redraw();
