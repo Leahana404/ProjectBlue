@@ -498,31 +498,21 @@ canvas.addEventListener("mousemove", (e) => {
 
   const { x, y } = toCanvasCoords(e);
 
-  if (currentMode === "select") {
-    const { x, y } = toCanvasCoords(e);
-    selectedShape = null;
-
-    for (let i = shapes.length - 1; i >= 0; i--) {
-      const shape = shapes[i];
-      if (shapeContains(shape, x, y)) {
-        const group = getGroupForShape(shape);
-        if (group) {
-          currentGroup = [...group.shapes]; // select the whole group
-        } else {
-          selectedShape = shape;
-          currentGroup = [shape];
-        }
-
-        if (shape.type === "room") {
-          dragOffset.x = x - shape.x;
-          dragOffset.y = y - shape.y;
-        } else if (shape.type === "line") {
-          dragOffset.x = x - shape.x1;
-          dragOffset.y = y - shape.y1;
-        }
-
-        isDraggingShape = true;
-        break;
+  // ✅ Dragging multiple selected shapes
+  if (isDraggingShape && currentGroup.length > 0 && currentMode === "select") {
+    for (let shape of currentGroup) {
+      if (shape.type === "room") {
+        shape.x = x - dragOffset.x;
+        shape.y = y - dragOffset.y;
+      } else if (shape.type === "line") {
+        const dx = x - dragOffset.x - shape.x1;
+        const dy = y - dragOffset.y - shape.y1;
+        shape.x1 += dx;
+        shape.y1 += dy;
+        shape.x2 += dx;
+        shape.y2 += dy;
+        dragOffset.x = x - shape.x1;
+        dragOffset.y = y - shape.y1;
       }
     }
     redraw();
@@ -574,6 +564,7 @@ canvas.addEventListener("mousemove", (e) => {
 
   redraw();
 });
+
 canvas.addEventListener("mouseup", (e) => {
   if (e.button === 1) {
     isDraggingCanvas = false;
