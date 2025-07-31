@@ -189,39 +189,25 @@ function drawGrid() {
   ctx.restore();
 }
 function redraw() {
-  drawGrid(); // draw background first with no transform
-  shapes.forEach(s => drawShape(s));
-  if (preview) drawShape(preview, true);
+  // Reset transform before starting fresh draw
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // draw selection box and shape highlights
-  if (selectionBox) {
-    ctx.save();
-    ctx.translate(offsetX, offsetY);
-    ctx.scale(zoomLevel, zoomLevel);
-    ctx.setLineDash([4, 2]);
-    ctx.strokeStyle = "blue";
-    ctx.lineWidth = 1 / zoomLevel;
-    ctx.strokeRect(selectionBox.x, selectionBox.y, selectionBox.width, selectionBox.height);
-    ctx.restore();
+  // Translate and scale for pan and zoom
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(zoomLevel, zoomLevel);
+
+  // Draw grid (grid is in world units, zoom and pan already applied)
+  drawGrid();
+
+  // Draw all shapes
+  for (let shape of shapes) {
+    drawShape(shape);
   }
 
-  if (selectedShapes.length > 0) {
-    ctx.save();
-    ctx.translate(offsetX, offsetY);
-    ctx.scale(zoomLevel, zoomLevel);
-    ctx.strokeStyle = "#00f";
-    ctx.lineWidth = 2 / zoomLevel;
-    selectedShapes.forEach(s => {
-      if (s.type === "room") {
-        ctx.strokeRect(s.x - 4, s.y - 4, s.width + 8, s.height + 8);
-      } else if (s.type === "line") {
-        ctx.beginPath();
-        ctx.moveTo(s.x1 - 4, s.y1 - 4);
-        ctx.lineTo(s.x2 + 4, s.y2 + 4);
-        ctx.stroke();
-      }
-    });
-    ctx.restore();
+  // Draw preview shape (if any)
+  if (preview) {
+    drawShape(preview, true);
   }
 }
 
@@ -733,13 +719,10 @@ canvas.addEventListener("wheel", (e) => {
 // Disable right-click menu
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
-// Initial canvas setup
 resizeCanvas();
 saveState();
 redraw();
-updateLoadSelect();
 
-// Redraw on window resize
 window.addEventListener("resize", () => {
   resizeCanvas();
   redraw();
