@@ -9,6 +9,7 @@ let currentMode = "room";
 let shapes = [];
 let history = [], future = [];
 let preview = null;
+let selectionBox = null;
 let zoomLevel = 1;
 let offsetX = window.innerWidth / 2;
 let offsetY = window.innerHeight / 2;
@@ -191,6 +192,16 @@ function redraw() {
   drawGrid();
   shapes.forEach(s => drawShape(s));
   if (preview) drawShape(preview, true);
+  if (selectionBox) {
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(zoomLevel, zoomLevel);
+  ctx.setLineDash([4, 2]); // dashed outline for preview
+  ctx.strokeStyle = "blue";
+  ctx.lineWidth = 1 / zoomLevel;
+  ctx.strokeRect(selectionBox.x, selectionBox.y, selectionBox.width, selectionBox.height);
+  ctx.restore();
+}
   if (selectedShapes.length > 0) {
     ctx.save();
     ctx.translate(offsetX, offsetY);
@@ -218,11 +229,14 @@ function drawShape(shape, isPreview = false) {
   ctx.strokeStyle = shape.color || "#000";
   ctx.lineWidth = (shape.thickness || 2) / zoomLevel;
 
-  // Highlight all selected shapes in group
-  if (currentMode === "select" && currentGroup.includes(shape)) {
+  const highlight = (shape === selectedShape || currentGroup.includes(shape)) && currentMode === "select";
+
+  if (highlight) {
     ctx.save();
     ctx.strokeStyle = "#00f";
     ctx.lineWidth = 2 / zoomLevel;
+    ctx.setLineDash([4, 2]);
+
     if (shape.type === "room") {
       ctx.strokeRect(shape.x - 4, shape.y - 4, shape.width + 8, shape.height + 8);
     } else if (shape.type === "line") {
@@ -231,9 +245,11 @@ function drawShape(shape, isPreview = false) {
       ctx.lineTo(shape.x2 + 4, shape.y2 + 4);
       ctx.stroke();
     }
+    ctx.setLineDash([]);
     ctx.restore();
   }
 
+  // Main drawing logic
   if (shape.type === "line") {
     ctx.beginPath();
     ctx.moveTo(shape.x1, shape.y1);
@@ -445,16 +461,21 @@ canvas.addEventListener("mousedown", (e) => {
 
   // ✅ Select Mode (with group logic)
   if (currentMode === "select") {
-    selectedShape = null;
-    let clickedShape = null;
+   const { x, y } = toCanvasCoords(e);
+  startX = snap(x);
+  startY = snap(y);
+  selectionBox = {
+    x: startX,
+    y: startY,
+    width: 0,
+    height: 0
+  };
+  isDrawing = true;
+  currentGroup = [];
+  redraw();
+  return;
+}
 
-    for (let i = shapes.length - 1; i >= 0; i--) {
-      const shape = shapes[i];
-      if (shapeContains(shape, x, y) && !isShapeInGroup(shape) || (getGroupForShape(shape)?.locked === false)) {
-        clickedShape = shape;
-        break;
-      }
-    }
 
     if (clickedShape) {
       const group = getGroupForShape(clickedShape);
@@ -523,6 +544,20 @@ canvas.addEventListener("mousedown", (e) => {
 });
 
 canvas.addEventListener("mousemove", (e) => {
+ if (isDrawing && currentMode === "select") {
+  const { x, y } = toCanvasCoords(e);
+  const snappedX = snap(x), snappedY = snap(y);
+
+  selectionBox = {
+    x: Math.min(startX, snappedX),
+    y: Math.min(startY, snappedY),
+    width: Math.abs(snappedX - startX),
+    height: Math.abs(snappedY - startY)
+  };
+
+  redraw();
+  return;
+}
   if (isDraggingCanvas) {
     const dx = e.clientX - dragStart.x;
     const dy = e.clientY - dragStart.y;
@@ -603,6 +638,35 @@ canvas.addEventListener("mousemove", (e) => {
 });
 
 canvas.addEventListener("mouseup", (e) => {
+if (currentMode === "select" && selectionBox) {
+  const { x, y, width, height } = selectionBox;
+  currentGroup = shapes.filter(s => {
+    if (s.type === "room") {
+      return s.x >= x && s.x + s.width <= x + width &&
+             s.y >= y && s.y + s.height <= y + height;
+    } else if (s.type === "line") {
+      return s.x1 >= x && s.x1 <= x + width &&
+             s.y1 >= y && s.y1 <= y + height &&
+             s.x2 >= x && s.x2 <= x + width &&
+             s.y2 >= y && s.y2 <= y + height;
+    } else if (s.type === "curve") {
+      return s.p1.x >= x && s.p1.x <= x + width &&
+             s.p1.y >= y && s.p1.y <= y + height &&
+             s.p2.x >= x && s.p2.x <= x + width &&
+             s.p2.y >= y && s.p2.y <= y + height;
+    } else if (s.type === "label") {
+      return s.x >= x && s.x <= x + width &&
+             s.y >= y && s.y <= y + height;
+    }
+    return false;
+  });
+
+  selectedShape = currentGroup.length === 1 ? currentGroup[0] : null;
+  selectionBox = null;
+  isDrawing = false;
+  redraw();
+  return;
+}
   if (e.button === 1) {
     isDraggingCanvas = false;
     e.preventDefault();
