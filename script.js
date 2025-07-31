@@ -450,7 +450,7 @@ canvas.addEventListener("mousedown", (e) => {
 
     for (let i = shapes.length - 1; i >= 0; i--) {
       const shape = shapes[i];
-      if (shapeContains(shape, x, y)) {
+      if (shapeContains(shape, x, y) && !isShapeInGroup(shape) || (getGroupForShape(shape)?.locked === false)) {
         clickedShape = shape;
         break;
       }
