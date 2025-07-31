@@ -194,20 +194,22 @@ function drawGrid() {
   ctx.restore();
 }
 function redraw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawGrid();
+  drawGrid(); // draw background first with no transform
   shapes.forEach(s => drawShape(s));
   if (preview) drawShape(preview, true);
+
+  // draw selection box and shape highlights
   if (selectionBox) {
-  ctx.save();
-  ctx.translate(offsetX, offsetY);
-  ctx.scale(zoomLevel, zoomLevel);
-  ctx.setLineDash([4, 2]); // dashed outline for preview
-  ctx.strokeStyle = "blue";
-  ctx.lineWidth = 1 / zoomLevel;
-  ctx.strokeRect(selectionBox.x, selectionBox.y, selectionBox.width, selectionBox.height);
-  ctx.restore();
-}
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(zoomLevel, zoomLevel);
+    ctx.setLineDash([4, 2]);
+    ctx.strokeStyle = "blue";
+    ctx.lineWidth = 1 / zoomLevel;
+    ctx.strokeRect(selectionBox.x, selectionBox.y, selectionBox.width, selectionBox.height);
+    ctx.restore();
+  }
+
   if (selectedShapes.length > 0) {
     ctx.save();
     ctx.translate(offsetX, offsetY);
