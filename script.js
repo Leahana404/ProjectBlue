@@ -164,25 +164,32 @@ function resizeCanvas() {
 }
 
 function drawGrid() {
-  const spacing = baseGridSize * zoomLevel;
-  const width = canvas.width / devicePixelRatio;
-  const height = canvas.height / devicePixelRatio;
+  const spacing = baseGridSize; // Grid spacing stays constant in world space
+  const width = canvas.width / zoomLevel;
+  const height = canvas.height / zoomLevel;
 
   ctx.save();
-  ctx.clearRect(0, 0, width, height);
-  ctx.translate(offsetX % spacing, offsetY % spacing);
   ctx.beginPath();
-  ctx.strokeStyle = '#ffffff55'; // subtle white grid lines
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = "#c0d8ee";
+  ctx.lineWidth = 1 / zoomLevel; // thinner lines when zoomed in
 
-  for (let x = -spacing; x < width + spacing; x += spacing) {
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, height);
+  // Calculate starting grid lines using pan offset
+  const startX = -offsetX / zoomLevel;
+  const startY = -offsetY / zoomLevel;
+
+  const endX = startX + width;
+  const endY = startY + height;
+
+  // Draw vertical lines
+  for (let x = Math.floor(startX / spacing) * spacing; x < endX; x += spacing) {
+    ctx.moveTo(x, startY);
+    ctx.lineTo(x, endY);
   }
 
-  for (let y = -spacing; y < height + spacing; y += spacing) {
-    ctx.moveTo(0, y);
-    ctx.lineTo(width, y);
+  // Draw horizontal lines
+  for (let y = Math.floor(startY / spacing) * spacing; y < endY; y += spacing) {
+    ctx.moveTo(startX, y);
+    ctx.lineTo(endX, y);
   }
 
   ctx.stroke();
