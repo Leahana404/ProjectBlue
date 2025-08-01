@@ -8,41 +8,35 @@
 </head>
 <body>
   <div class="toolbar">
-    <h1>Blueprint Drawing Tool</h1>
+    <h1>Blueprint Tool</h1>
     <div class="tool-buttons">
       <button onclick="setMode('room')">Room</button>
       <button onclick="setMode('line')">Line</button>
       <button onclick="setMode('curve')">Curve</button>
       <button onclick="setMode('label')">Label</button>
       <button onclick="setMode('erase')">Eraser</button>
-      <button onclick="setMode('select')">Select</button> <!-- NEW -->
+      <button onclick="setMode('select')">Select</button>
+      <button onclick="toggleLabels()">Hide Labels</button>
       <button onclick="undo()">Undo</button>
       <button onclick="redo()">Redo</button>
       <button onclick="downloadImage()">Download PNG</button>
-      <button onclick="toggleLabels()">👁️ Hide Labels</button>
-      <button onclick="groupSelected()">Group</button>
-<button onclick="ungroupSelected()">Ungroup</button>
-<button onclick="toggleGroupLock()">Lock/Unlock</button>
-      <button onclick="groupSelectedShapes()">Group</button>
-<button onclick="ungroupSelectedShapes()">Ungroup</button>
-<button onclick="toggleLockGroup()">Lock/Unlock Group</button>
     </div>
     <div class="tool-options">
-      <input type="text" id="saveNameInput" placeholder="Save Name"/>
+      <input type="text" id="saveNameInput" placeholder="Save Name" />
       <button onclick="saveDrawing()">Save</button>
       <select id="loadSelect"></select>
       <button onclick="loadDrawing()">Load</button>
 
-      <label for="colorInput">Color:</label>
-      <input type="color" id="colorInput" value="#000000"/>
+      <label>Color:</label>
+      <input type="color" id="colorInput" value="#000000" />
 
-      <label for="thicknessInput">Thickness:</label>
+      <label>Thickness:</label>
       <input type="number" id="thicknessInput" value="2" min="1" max="10" />
 
-      <label for="scaleInput">Scale:</label>
-      <input type="number" id="scaleInput" value="1" step="0.1"/>
+      <label>Scale:</label>
+      <input type="number" id="scaleInput" value="1" step="0.1" />
 
-      <label for="unitSelect">Units:</label>
+      <label>Units:</label>
       <select id="unitSelect">
         <option value="feet-inches">ft/in</option>
         <option value="decimal-feet">ft (decimal)</option>
@@ -50,6 +44,7 @@
       </select>
     </div>
   </div>
+
   <canvas id="blueprintCanvas"></canvas>
 
   <script src="script.js"></script>
