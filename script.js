@@ -9,7 +9,6 @@ let currentMode = "room";
 let shapes = [];
 let history = [], future = [];
 let preview = null;
-let selectionBox = null;
 let zoomLevel = 1;
 let offsetX = window.innerWidth / 2;
 let offsetY = window.innerHeight / 2;
@@ -23,57 +22,6 @@ let selectedShape = null;
 let selectedShapes = [];
 let isDraggingShape = false;
 let dragOffset = { x: 0, y: 0 };
-let currentGroup = [];
-let groupedShapes = []; // Array of { id: string, shapes: array of shape refs, locked: bool }
-
-function generateGroupId() {
-  return 'group_' + Math.random().toString(36).substr(2, 9);
-}
-function groupSelectedShapes() {
-  if (currentGroup.length < 2) return alert("Select at least two shapes to group.");
-  const id = generateGroupId();
-  groupedShapes.push({
-    id,
-    shapes: [...currentGroup],
-    locked: false
-  });
-  selectedShape = null;
-  currentGroup = [];
-  saveState();
-  redraw();
-}
-
-function ungroupSelectedShapes() {
-  if (currentGroup.length === 0) return;
-
-  groupedShapes = groupedShapes.filter(group => {
-    const shared = group.shapes.some(shape => currentGroup.includes(shape));
-    return !shared;
-  });
-
-  selectedShape = null;
-  currentGroup = [];
-  saveState();
-  redraw();
-}
-
-function toggleLockGroup() {
-  if (currentGroup.length === 0) return;
-  const group = getGroupForShape(currentGroup[0]);
-  if (!group) return alert("No group found.");
-
-  group.locked = !group.locked;
-  alert(group.locked ? "Group locked." : "Group unlocked.");
-  saveState();
-  redraw();
-}
-function isShapeInGroup(shape) {
-  return groupedShapes.some(group => group.shapes.includes(shape));
-}
-
-function getGroupForShape(shape) {
-  return groupedShapes.find(group => group.shapes.includes(shape));
-}
 
 const baseGridSize = 20;
 const minZoom = 0.2;
@@ -105,22 +53,6 @@ function toCanvasCoords(e) {
     x: (e.clientX - rect.left - offsetX) / zoomLevel,
     y: (e.clientY - rect.top - offsetY) / zoomLevel
   };
-}
-
-function groupSelectedShapes() {
-  if (currentGroup.length < 2) return alert("Select at least 2 shapes to group.");
-  const groupId = generateGroupId();
-  groupedShapes.push({ id: groupId, shapes: [...currentGroup], locked: false });
-  currentGroup = [];
-  redraw();
-}
-
-function toggleGroupLock(shape) {
-  const group = getGroupForShape(shape);
-  if (!group) return alert("Shape is not in a group.");
-  group.locked = !group.locked;
-  alert(group.locked ? "Group locked." : "Group unlocked.");
-  redraw();
 }
 
 function setMode(mode) {
@@ -164,57 +96,51 @@ function resizeCanvas() {
 }
 
 function drawGrid() {
-  const spacing = baseGridSize; // Grid spacing stays constant in world space
-  const width = canvas.width / zoomLevel;
-  const height = canvas.height / zoomLevel;
+  const spacing = baseGridSize * zoomLevel;
+  const width = canvas.width / devicePixelRatio;
+  const height = canvas.height / devicePixelRatio;
 
   ctx.save();
+  ctx.translate(offsetX % spacing, offsetY % spacing);
   ctx.beginPath();
-  ctx.strokeStyle = "#c0d8ee";
-  ctx.lineWidth = 1 / zoomLevel; // thinner lines when zoomed in
+  ctx.strokeStyle = '#c0d8ee';
+  ctx.lineWidth = 1;
 
-  // Calculate starting grid lines using pan offset
-  const startX = -offsetX / zoomLevel;
-  const startY = -offsetY / zoomLevel;
-
-  const endX = startX + width;
-  const endY = startY + height;
-
-  // Draw vertical lines
-  for (let x = Math.floor(startX / spacing) * spacing; x < endX; x += spacing) {
-    ctx.moveTo(x, startY);
-    ctx.lineTo(x, endY);
+  for (let x = -spacing; x < width + spacing; x += spacing) {
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
   }
 
-  // Draw horizontal lines
-  for (let y = Math.floor(startY / spacing) * spacing; y < endY; y += spacing) {
-    ctx.moveTo(startX, y);
-    ctx.lineTo(endX, y);
+  for (let y = -spacing; y < height + spacing; y += spacing) {
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
   }
 
   ctx.stroke();
   ctx.restore();
 }
 function redraw() {
-  // Reset transform before starting fresh draw
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Translate and scale for pan and zoom
-  ctx.translate(offsetX, offsetY);
-  ctx.scale(zoomLevel, zoomLevel);
-
-  // Draw grid (grid is in world units, zoom and pan already applied)
   drawGrid();
-
-  // Draw all shapes
-  for (let shape of shapes) {
-    drawShape(shape);
-  }
-
-  // Draw preview shape (if any)
-  if (preview) {
-    drawShape(preview, true);
+  shapes.forEach(s => drawShape(s));
+  if (preview) drawShape(preview, true);
+  if (selectedShapes.length > 0) {
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(zoomLevel, zoomLevel);
+    ctx.strokeStyle = "#00f";
+    ctx.lineWidth = 2 / zoomLevel;
+    selectedShapes.forEach(s => {
+      if (s.type === "room") {
+        ctx.strokeRect(s.x - 4, s.y - 4, s.width + 8, s.height + 8);
+      } else if (s.type === "line") {
+        ctx.beginPath();
+        ctx.moveTo(s.x1 - 4, s.y1 - 4);
+        ctx.lineTo(s.x2 + 4, s.y2 + 4);
+        ctx.stroke();
+      }
+    });
+    ctx.restore();
   }
 }
 
@@ -225,14 +151,10 @@ function drawShape(shape, isPreview = false) {
   ctx.strokeStyle = shape.color || "#000";
   ctx.lineWidth = (shape.thickness || 2) / zoomLevel;
 
-  const highlight = (shape === selectedShape || currentGroup.includes(shape)) && currentMode === "select";
-
-  if (highlight) {
+  if (shape === selectedShape && currentMode === "select") {
     ctx.save();
     ctx.strokeStyle = "#00f";
     ctx.lineWidth = 2 / zoomLevel;
-    ctx.setLineDash([4, 2]);
-
     if (shape.type === "room") {
       ctx.strokeRect(shape.x - 4, shape.y - 4, shape.width + 8, shape.height + 8);
     } else if (shape.type === "line") {
@@ -241,11 +163,9 @@ function drawShape(shape, isPreview = false) {
       ctx.lineTo(shape.x2 + 4, shape.y2 + 4);
       ctx.stroke();
     }
-    ctx.setLineDash([]);
     ctx.restore();
   }
 
-  // Main drawing logic
   if (shape.type === "line") {
     ctx.beginPath();
     ctx.moveTo(shape.x1, shape.y1);
@@ -273,47 +193,6 @@ function drawShape(shape, isPreview = false) {
   }
 
   ctx.restore();
-}
-function groupSelected() {
-  if (currentGroup.length < 2) return alert("Select at least two shapes to group.");
-
-  const groupId = generateGroupId();
-  groupedShapes.push({
-    id: groupId,
-    shapes: [...currentGroup],
-    locked: false
-  });
-  currentGroup = [];
-  selectedShape = null;
-  redraw();
-  saveState();
-}
-
-function ungroupSelected() {
-  let changed = false;
-  for (let i = groupedShapes.length - 1; i >= 0; i--) {
-    const group = groupedShapes[i];
-    if (group.shapes.some(s => currentGroup.includes(s))) {
-      groupedShapes.splice(i, 1);
-      changed = true;
-    }
-  }
-  if (changed) {
-    currentGroup = [];
-    selectedShape = null;
-    redraw();
-    saveState();
-  } else {
-    alert("No group found to ungroup.");
-  }
-}
-
-function toggleGroupLock() {
-  const group = currentGroup.length ? getGroupForShape(currentGroup[0]) : null;
-  if (!group) return alert("No group selected.");
-  group.locked = !group.locked;
-  redraw();
-  saveState();
 }
 
 function drawLineLabel(x1, y1, x2, y2, color) {
@@ -455,64 +334,33 @@ canvas.addEventListener("mousedown", (e) => {
 
   const { x, y } = toCanvasCoords(e);
 
-  // ✅ Select Mode (with group logic)
   if (currentMode === "select") {
-   const { x, y } = toCanvasCoords(e);
-  startX = snap(x);
-  startY = snap(y);
-  selectionBox = {
-    x: startX,
-    y: startY,
-    width: 0,
-    height: 0
-  };
-  isDrawing = true;
-  currentGroup = [];
-  redraw();
-  return;
-}
-
-
-    if (clickedShape) {
-      const group = getGroupForShape(clickedShape);
-      if (group && group.locked) {
-        alert("This group is locked.");
-        return;
+    selectedShape = null;
+    for (let i = shapes.length - 1; i >= 0; i--) {
+      const shape = shapes[i];
+      if (shapeContains(shape, x, y)) {
+        selectedShape = shape;
+        if (shape.type === "room") {
+          dragOffset.x = x - shape.x;
+          dragOffset.y = y - shape.y;
+        } else if (shape.type === "line") {
+          dragOffset.x = x - shape.x1;
+          dragOffset.y = y - shape.y1;
+        }
+        isDraggingShape = true;
+        break;
       }
-
-      selectedShape = clickedShape;
-
-      if (!currentGroup.includes(clickedShape)) {
-        currentGroup.push(clickedShape);
-      } else {
-        currentGroup = currentGroup.filter(s => s !== clickedShape);
-      }
-
-      if (clickedShape.type === "room") {
-        dragOffset.x = x - clickedShape.x;
-        dragOffset.y = y - clickedShape.y;
-      } else if (clickedShape.type === "line") {
-        dragOffset.x = x - clickedShape.x1;
-        dragOffset.y = y - clickedShape.y1;
-      }
-
-      isDraggingShape = true;
-    } else {
-      currentGroup = [];
     }
-
     redraw();
     return;
   }
 
-  // 🛑 Don't draw if not left-click
   if (e.button !== 0) return;
 
   isDrawing = true;
   startX = snap(x);
   startY = snap(y);
 
-  // 🎯 Curve drawing phase tracker
   if (currentMode === "curve") {
     curveClicks++;
     if (curveClicks === 1) {
@@ -540,20 +388,6 @@ canvas.addEventListener("mousedown", (e) => {
 });
 
 canvas.addEventListener("mousemove", (e) => {
- if (isDrawing && currentMode === "select") {
-  const { x, y } = toCanvasCoords(e);
-  const snappedX = snap(x), snappedY = snap(y);
-
-  selectionBox = {
-    x: Math.min(startX, snappedX),
-    y: Math.min(startY, snappedY),
-    width: Math.abs(snappedX - startX),
-    height: Math.abs(snappedY - startY)
-  };
-
-  redraw();
-  return;
-}
   if (isDraggingCanvas) {
     const dx = e.clientX - dragStart.x;
     const dy = e.clientY - dragStart.y;
@@ -566,22 +400,19 @@ canvas.addEventListener("mousemove", (e) => {
 
   const { x, y } = toCanvasCoords(e);
 
-  // ✅ Dragging multiple selected shapes
-  if (isDraggingShape && currentGroup.length > 0 && currentMode === "select") {
-    for (let shape of currentGroup) {
-      if (shape.type === "room") {
-        shape.x = x - dragOffset.x;
-        shape.y = y - dragOffset.y;
-      } else if (shape.type === "line") {
-        const dx = x - dragOffset.x - shape.x1;
-        const dy = y - dragOffset.y - shape.y1;
-        shape.x1 += dx;
-        shape.y1 += dy;
-        shape.x2 += dx;
-        shape.y2 += dy;
-        dragOffset.x = x - shape.x1;
-        dragOffset.y = y - shape.y1;
-      }
+  if (isDraggingShape && selectedShape && currentMode === "select") {
+    if (selectedShape.type === "room") {
+      selectedShape.x = x - dragOffset.x;
+      selectedShape.y = y - dragOffset.y;
+    } else if (selectedShape.type === "line") {
+      const dx = x - dragOffset.x - selectedShape.x1;
+      const dy = y - dragOffset.y - selectedShape.y1;
+      selectedShape.x1 += dx;
+      selectedShape.y1 += dy;
+      selectedShape.x2 += dx;
+      selectedShape.y2 += dy;
+      dragOffset.x = x - selectedShape.x1;
+      dragOffset.y = y - selectedShape.y1;
     }
     redraw();
     return;
@@ -632,37 +463,7 @@ canvas.addEventListener("mousemove", (e) => {
 
   redraw();
 });
-
 canvas.addEventListener("mouseup", (e) => {
-if (currentMode === "select" && selectionBox) {
-  const { x, y, width, height } = selectionBox;
-  currentGroup = shapes.filter(s => {
-    if (s.type === "room") {
-      return s.x >= x && s.x + s.width <= x + width &&
-             s.y >= y && s.y + s.height <= y + height;
-    } else if (s.type === "line") {
-      return s.x1 >= x && s.x1 <= x + width &&
-             s.y1 >= y && s.y1 <= y + height &&
-             s.x2 >= x && s.x2 <= x + width &&
-             s.y2 >= y && s.y2 <= y + height;
-    } else if (s.type === "curve") {
-      return s.p1.x >= x && s.p1.x <= x + width &&
-             s.p1.y >= y && s.p1.y <= y + height &&
-             s.p2.x >= x && s.p2.x <= x + width &&
-             s.p2.y >= y && s.p2.y <= y + height;
-    } else if (s.type === "label") {
-      return s.x >= x && s.x <= x + width &&
-             s.y >= y && s.y <= y + height;
-    }
-    return false;
-  });
-
-  selectedShape = currentGroup.length === 1 ? currentGroup[0] : null;
-  selectionBox = null;
-  isDrawing = false;
-  redraw();
-  return;
-}
   if (e.button === 1) {
     isDraggingCanvas = false;
     e.preventDefault();
@@ -726,10 +527,13 @@ canvas.addEventListener("wheel", (e) => {
 // Disable right-click menu
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
+// Initial canvas setup
 resizeCanvas();
 saveState();
 redraw();
+updateLoadSelect();
 
+// Redraw on window resize
 window.addEventListener("resize", () => {
   resizeCanvas();
   redraw();
